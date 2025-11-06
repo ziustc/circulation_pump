@@ -65,7 +65,9 @@ DisplayMode Pattern::getDisplayMode() { return mode; }
 
 void Pattern::setFlashInterval(int interval) { flashInterval = interval; }
 
-void Pattern::draw()
+void Pattern::draw() { drawCore(); }
+
+void Pattern::drawCore()
 {
     long currentTime = millis();
     if (mode == DM_HIDE)
@@ -85,26 +87,22 @@ void Pattern::draw()
         {
             isVisibleNow   = !isVisibleNow; // 切换可见状态
             lastSwitchTime = currentTime;
-            Serial.println("flash");
+            Serial.print("flash ");
+            Serial.println(isVisibleNow);
         }
     }
 
     if (u8g2 && isVisibleNow)
     {
-        drawSpecific(); //这里output()是虚函数，将调用派生类对象的output()函数
-    }
-}
-
-void Pattern::drawSpecific()
-{
-    if (patternType == PT_BMP)
-    {
-        u8g2->drawXBMP(posX, posY, width, height, bmpPtr());
-    }
-    else // patternType == PT_FONT
-    {
-        u8g2->setFont(fontSet);
-        u8g2->drawUTF8(posX, posY, patternCode);
+        if (patternType == PT_BMP)
+        {
+            u8g2->drawXBMP(posX, posY, width, height, bmpPtr());
+        }
+        else // patternType == PT_FONT
+        {
+            u8g2->setFont(fontSet);
+            u8g2->drawUTF8(posX, posY, patternCode);
+        }
     }
 }
 
@@ -167,12 +165,12 @@ void InputDigit::decrease()
         value = maxValue; // 循环到最大值
 }
 
-void InputDigit::drawSpecific()
+void InputDigit::draw()
 {
     char buffer[10];
     snprintf(buffer, sizeof(buffer), "%0*d", digitCnt, value);
     setCode(buffer);
-    u8g2->drawUTF8(posX, posY, patternCode);
+    drawCore();
 }
 
 ////////////////////////////////////////////////////////////
@@ -208,7 +206,7 @@ void MultiSymbol::rollSymbol() { symbolIndex = (symbolIndex + 1) % symbolCnt; }
 
 void MultiSymbol::rollSymbolBack() { symbolIndex = (symbolIndex - 1 + symbolCnt) % symbolCnt; }
 
-void MultiSymbol::drawSpecific()
+void MultiSymbol::draw()
 {
     long currentTime = millis();
     if (currentTime - lastRollingTime >= rollingInterval)
@@ -217,5 +215,5 @@ void MultiSymbol::drawSpecific()
         lastRollingTime = currentTime;
     }
     setCode((char *)(&symbolIndex));
-    u8g2->drawXBMP(posX, posY, width, height, bmpPtr());
+    drawCore();
 }

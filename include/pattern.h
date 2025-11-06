@@ -21,18 +21,21 @@ class Pattern
 {
 public:
     Pattern(U8G2 *u8g2Ptr = nullptr, uint8_t *font = nullptr, PatternType type = PT_BMP);
-    void        setU8G2(U8G2 *u8g2Ptr);
-    void        setFont(uint8_t *font);
-    void        setPosition(uint16_t x, uint16_t y);
-    void        setBMPSize(uint16_t w, uint16_t h);
-    void        movePosition(int dx, int dy);
-    void        setCode(char *code);
-    void        setDisplayMode(DisplayMode mode);
-    DisplayMode getDisplayMode();
-    void        setFlashInterval(int interval);
-    void        draw(); // 每次刷新LCD时调用，写入本图案的当前状态到缓冲区
+    void         setU8G2(U8G2 *u8g2Ptr);
+    void         setFont(uint8_t *font);
+    void         setPosition(uint16_t x, uint16_t y);
+    void         setBMPSize(uint16_t w, uint16_t h);
+    void         movePosition(int dx, int dy);
+    void         setCode(char *code);
+    void         setDisplayMode(DisplayMode mode);
+    DisplayMode  getDisplayMode();
+    void         setFlashInterval(int interval);
+    virtual void draw(); // 虚函数，每次刷新LCD时调用，在各派生类中预处理完成后，调用基类drawCore()实现写入u8g2
 
 protected:
+    void drawCore(); // 由draw()调用，将本Pattern（包括子类的各种类型）的图案输出到缓冲区
+
+private:
     U8G2       *u8g2;        // 指向U8G2对象的指针
     uint8_t    *fontSet;     // 图案集（自定义的位图数组）或字库名称
     PatternType patternType; // 是图案集还是字库
@@ -40,16 +43,13 @@ protected:
                              // 若fontSet是字库(patternType=PT_FONT)，code是字符串起始指针，以\0结尾
     int16_t        posX;
     int16_t        posY;
-    int16_t        width;    // 仅针对patternType==PT_BMP
-    int16_t        height;   // 仅针对patternType==PT_BMP
-    const uint8_t *bmpPtr(); //针对fontSet是图案数组(patternTpye=PT_BMP)的，计算具体的图案指针
-
-private:
-    DisplayMode  mode;           // 显示模式（show/hide/flash）
-    bool         isVisibleNow;   // 当前是否可见
-    long         lastSwitchTime; // flash状态时的上次切换时间
-    int          flashInterval;  // 闪烁间隔时间
-    virtual void drawSpecific(); // 虚函数，由draw()调用，将本Pattern（包括子类的各种类型）的图案输出到缓冲区
+    int16_t        width;          // 仅针对patternType==PT_BMP
+    int16_t        height;         // 仅针对patternType==PT_BMP
+    DisplayMode    mode;           // 显示模式（show/hide/flash）
+    bool           isVisibleNow;   // 当前是否可见
+    long           lastSwitchTime; // flash状态时的上次切换时间
+    int            flashInterval;  // 闪烁间隔时间
+    const uint8_t *bmpPtr();       //针对fontSet是图案数组(patternTpye=PT_BMP)的，计算具体的图案指针
 };
 
 class InputDigit : public Pattern
@@ -62,13 +62,13 @@ public:
     int  getValue();
     void increase();
     void decrease();
+    void draw() override; // 重写draw()，然后调用基类的drawCore，显示数字
 
 private:
-    int  maxValue;                // 最大数字
-    int  minValue;                // 最小数字
-    int  digitCnt;                // 显示的数字位数
-    int  value;                   // 当前数值
-    void drawSpecific() override; // 重写output方法，由父类的draw()调用，显示数字
+    int maxValue; // 最大数字
+    int minValue; // 最小数字
+    int digitCnt; // 显示的数字位数
+    int value;    // 当前数值
 };
 
 class MultiSymbol : public Pattern
@@ -80,13 +80,13 @@ public:
     void setRollingInterval(int interval); // 设置符号滚动间隔时间
     void rollSymbol();                     // 向前滚动符号
     void rollSymbolBack();                 // 向后滚动符号
+    void draw() override;                  // 重写draw()，然后调用基类的drawCore，显示图案
 
 private:
-    uint8_t symbolCnt;               // 符号数量
-    uint8_t symbolIndex;             // 当前显示的符号ID
-    long    lastRollingTime;         // 上次符号滚动时间
-    int     rollingInterval;         // 符号滚动间隔
-    void    drawSpecific() override; //重写output，由父类的draw()调用，显示图案
+    uint8_t symbolCnt;       // 符号数量
+    uint8_t symbolIndex;     // 当前显示的符号ID
+    long    lastRollingTime; // 上次符号滚动时间
+    int     rollingInterval; // 符号滚动间隔
 };
 
 #endif
