@@ -6,9 +6,8 @@
 //                       Pattern                          //
 ////////////////////////////////////////////////////////////
 
-Pattern::Pattern(U8G2 *u8g2Ptr = nullptr, uint8_t *font = nullptr, PatternType type = PT_BMP)
+Pattern::Pattern(uint8_t *font, PatternType type)
 {
-    u8g2           = u8g2Ptr;
     fontSet        = font;
     patternType    = type;
     patternCode    = nullptr;
@@ -16,13 +15,11 @@ Pattern::Pattern(U8G2 *u8g2Ptr = nullptr, uint8_t *font = nullptr, PatternType t
     posY           = 0;
     width          = 0;
     height         = 0;
-    mode           = DM_SHOW;
+    dispMode       = DM_SHOW;
     isVisibleNow   = true;
     lastSwitchTime = 0;
     flashInterval  = 500; // 默认闪烁间隔500毫秒
 }
-
-void Pattern::setU8G2(U8G2 *u8g2Ptr) { u8g2 = u8g2Ptr; }
 
 void Pattern::setFont(uint8_t *font) { fontSet = font; }
 
@@ -32,88 +29,86 @@ void Pattern::setPosition(uint16_t x, uint16_t y)
     posY = y;
 }
 
-void Pattern::setBMPSize(uint16_t w, uint16_t h)
-{
-    width  = w;
-    height = h;
-}
-
 void Pattern::movePosition(int dx, int dy)
 {
     posX += dx;
     posY += dy;
 }
 
-void Pattern::setCode(char *code) { patternCode = code; }
+void Pattern::setBMPSize(uint16_t w, uint16_t h)
+{
+    width  = w;
+    height = h;
+}
+
+void Pattern::setCode(const char *code) { patternCode = code; }
 
 void Pattern::setDisplayMode(DisplayMode mode)
 {
-    this->mode     = mode;
+    this->dispMode = mode;
     lastSwitchTime = millis(); // 重置闪烁时间
-    if (mode == DM_SHOW)
+    if (dispMode == DM_SHOW)
     {
         isVisibleNow = true;
     }
-    else if (mode == DM_HIDE)
+    else if (dispMode == DM_HIDE)
     {
         isVisibleNow = false;
     }
     // 如果是闪烁模式，保持当前状态
 }
 
-DisplayMode Pattern::getDisplayMode() { return mode; }
+DisplayMode Pattern::getDisplayMode() { return dispMode; }
 
 void Pattern::setFlashInterval(int interval) { flashInterval = interval; }
 
-void Pattern::draw() { drawCore(); }
+void Pattern::draw(U8G2 *u8g2Ptr) { drawCore(u8g2Ptr); }
 
-void Pattern::drawCore()
+void Pattern::drawCore(U8G2 *u8g2Ptr)
 {
     long currentTime = millis();
-    if (mode == DM_HIDE)
+    if (dispMode == DM_HIDE)
     {
         isVisibleNow = false;
     }
 
-    else if (mode == DM_SHOW)
+    else if (dispMode == DM_SHOW)
     {
         isVisibleNow = true;
     }
 
-    else // if (mode == DM_FLASH)
+    else // if (dispMode == DM_FLASH)
     {
         // 如果是闪烁模式，检查是否需要切换可见状态
         if (currentTime - lastSwitchTime >= flashInterval)
         {
             isVisibleNow   = !isVisibleNow; // 切换可见状态
             lastSwitchTime = currentTime;
-            Serial.print("flash ");
-            Serial.println(isVisibleNow);
         }
     }
 
-    if (u8g2 && isVisibleNow)
+    if (isVisibleNow)
     {
         if (patternType == PT_BMP)
         {
-            u8g2->drawXBMP(posX, posY, width, height, bmpPtr());
+            u8g2Ptr->drawXBMP(posX, posY, width, height, fontSet + *((int *)patternCode));
+            // patternCode原本为char*类型，如果为图案，在派生类的draw()中会让他指向一个int（4字节）类型变量offset的地址
+            // 这里(int*)patternCode先转化为int类型指针，然后读取该地址的值，得到offset，在加上fontSet基地址，得到图案首地址
         }
         else // patternType == PT_FONT
         {
-            u8g2->setFont(fontSet);
-            u8g2->drawUTF8(posX, posY, patternCode);
+            u8g2Ptr->setFont(fontSet);
+            u8g2Ptr->drawUTF8(posX, posY, patternCode);
         }
     }
 }
-
-const uint8_t *Pattern::bmpPtr() { return fontSet + (*patternCode) * width * height / 8; }
 
 ////////////////////////////////////////////////////////////
 //                     InputDigit                         //
 ////////////////////////////////////////////////////////////
 
-InputDigit::InputDigit(U8G2 *u8g2Ptr, uint8_t *font)
-: Pattern(u8g2Ptr, font, PT_FONT)
+InputDigit::InputDigit(uint8_t *font)
+: Pattern(font, PT_FONT)
 {
     maxValue = 9;
     minValue = 0;
@@ -121,10 +116,10 @@ InputDigit::InputDigit(U8G2 *u8g2Ptr, uint8_t *font)
     digitCnt = 1;
 }
 
-void InputDigit::setLimit(int max, int min)
+void InputDigit::setLimit(int min, int max)
 {
-    maxValue = max;
     minValue = min;
+    maxValue = max;
     if (value > maxValue) value = maxValue;
     if (value < minValue) value = minValue;
 }
@@ -165,23 +160,25 @@ void InputDigit::decrease()
         value = maxValue; // 循环到最大值
 }
 
-void InputDigit::draw()
+void InputDigit::draw(U8G2 *u8g2Ptr)
 {
     char buffer[10];
     snprintf(buffer, sizeof(buffer), "%0*d", digitCnt, value);
     setCode(buffer);
-    drawCore();
+    drawCore(u8g2Ptr);
 }
 
 ////////////////////////////////////////////////////////////
 //                     MultiSymbol                        //
 ////////////////////////////////////////////////////////////
 
-MultiSymbol::MultiSymbol(U8G2 *u8g2Ptr, uint8_t *symbolList, uint8_t count)
-: Pattern(u8g2Ptr, symbolList, PT_BMP)
+MultiSymbol::MultiSymbol(uint8_t *symbolListPtr, int singleSymbolLen, int count)
+: Pattern(symbolListPtr, PT_BMP)
 {
     symbolCnt       = count;
+    symbolLen       = singleSymbolLen;
     symbolIndex     = 0;
+    symbolRolling   = false;
     lastRollingTime = 0;
     rollingInterval = 100; // 默认滚动间隔100毫秒
 }
@@ -202,18 +199,26 @@ void MultiSymbol::setSymbolIndex(uint8_t index)
 
 void MultiSymbol::setRollingInterval(int interval) { rollingInterval = interval; }
 
+void MultiSymbol::setRollOnOff(bool isRolling)
+{
+    symbolRolling = isRolling;
+    if (!isRolling) lastRollingTime = 0;
+}
+
 void MultiSymbol::rollSymbol() { symbolIndex = (symbolIndex + 1) % symbolCnt; }
 
 void MultiSymbol::rollSymbolBack() { symbolIndex = (symbolIndex - 1 + symbolCnt) % symbolCnt; }
 
-void MultiSymbol::draw()
+void MultiSymbol::draw(U8G2 *u8g2Ptr)
 {
     long currentTime = millis();
-    if (currentTime - lastRollingTime >= rollingInterval)
+    int symbolOffset = symbolIndex * symbolLen;
+
+    if (symbolRolling && (currentTime - lastRollingTime >= rollingInterval))
     {
         rollSymbol();
         lastRollingTime = currentTime;
     }
-    setCode((char *)(&symbolIndex));
-    drawCore();
+    setCode((char *)(&symbolOffset));
+    drawCore(u8g2Ptr);
 }

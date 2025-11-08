@@ -2,6 +2,7 @@
 #include "U8g2lib.h"
 #include "panel.h"
 #include "pattern.h"
+#include "symbols.h"
 
 using namespace std;
 
@@ -11,18 +12,75 @@ using namespace std;
 
 Panel::Panel()
 {
-    posX = 0;
-    posY = 0;
+    posX          = 0;
+    posY          = 0;
+    dispMode      = DM_SHOW;
+    isVisibleNow  = true;
+    flashInterval = 500;
 }
-
-void Panel::setU8G2(U8G2 *u8g2Ptr) { u8g2 = u8g2Ptr; }
 
 void Panel::setPosition(uint16_t left, uint16_t top)
 {
+    // 先将Panel下所有的Pattern同步重定义位置
+    for (Pattern *patternPtr : allPatterns)
+        patternPtr->movePosition(left - posX, top - posY);
+
+    // 再重设本Panel的位置
     posX = left;
     posY = top;
 }
 
+uint16_t Panel::getX() { return posX; }
+
+uint16_t Panel::getY() { return posY; }
+
+void Panel::setDisplayMode(DisplayMode mode)
+{
+    dispMode       = mode;
+    lastSwitchTime = millis(); // 重置闪烁时间
+    if (mode == DM_SHOW)
+    {
+        isVisibleNow = true;
+    }
+    else if (mode == DM_HIDE)
+    {
+        isVisibleNow = false;
+    }
+    else // mode==DM_FLASH
+    {
+        isVisibleNow = !isVisibleNow; // 先翻转，这样可以立即体现闪烁状态
+    }
+}
+
+void Panel::setFlashInterval(int interval) { flashInterval = interval; }
+
+void Panel::draw(U8G2 *u8g2Ptr)
+{
+    long currentTime = millis();
+    if (dispMode == DM_HIDE)
+    {
+        isVisibleNow = false;
+    }
+
+    else if (dispMode == DM_SHOW)
+    {
+        isVisibleNow = true;
+    }
+
+    else // if (dispMode == DM_FLASH)
+    {
+        // 如果是闪烁模式，检查是否需要切换可见状态
+        if (currentTime - lastSwitchTime >= flashInterval)
+        {
+            isVisibleNow   = !isVisibleNow; // 切换可见状态
+            lastSwitchTime = currentTime;
+        }
+    }
+
+    if (isVisibleNow) drawSpecific(u8g2Ptr);
+}
+
+void Panel::registerPattern(Pattern *newPattern) { allPatterns.push_back(newPattern); }
 /*************************************************************/
 /*                         CtrlPanel                         */
 /*************************************************************/
@@ -31,7 +89,7 @@ CtrlPanel::CtrlPanel()
 {
     isSelected    = false;
     isActive      = false;
-    selectedField = inputFields.end();
+    selectedField = -1;
 }
 
 /**
@@ -42,23 +100,56 @@ void CtrlPanel::setSelected(bool sel)
     isSelected = sel;
     if (sel)
     {
-        PanelLogo.setDisplayMode(DM_FLASH);
-        PanelLogo.setFlashInterval(500);
+        setDisplayMode(DM_FLASH);
+    }
+    else
+    {
+        setDisplayMode(DM_SHOW);
     }
 }
 
 /**
- * @brief 设置面板激活状态，激活时进入面板编辑状态
+ * @brief 返回面板选中状态
+ */
+bool CtrlPanel::getSelected() { return isSelected; }
+
+/**
+ * @brief 设置面板激活状态，激活时进入面板编辑状态，退出激活时回到面板正常显示状态
  */
 void CtrlPanel::setActive(bool active)
 {
-    isActive = active;
-    PanelLogo.setDisplayMode(DM_SHOW);
-
+    // 如果该面板没有可输入的字段，则不响应选中命令
     if (inputFields.empty()) return;
 
-    selectedField = inputFields.begin();
-    selectedField->setDisplayMode(DM_FLASH);
+    // 如果面板有输入字段，先更新状态
+    isActive = active;
+
+    // 如果是进入active
+    if (active)
+    {
+        // 进入Active则退出Selected状态
+        setSelected(false);
+
+        // 如果没有设置输入字段，则从第一个inputField开始准备输入，如果本来就在输入，则不变
+        if (selectedField == -1)
+        {
+            selectedField = 0;
+            inputFields[selectedField].setDisplayMode(DM_FLASH);
+        }
+    }
+
+    // 如果取消选中
+    else
+    {
+        // 如果有正在编辑的InputField（一定有），则先退出编辑状态
+        if (selectedField != -1)
+        {
+            inputFields[selectedField].setDisplayMode(DM_SHOW);
+            selectedField = -1;
+        }
+
+        // 退出Active，不需要再进入Selected状态，而是直接回到正常显示状态
+    }
 }
 
 bool CtrlPanel::getActive() { return isActive; }
@@ -67,31 +158,27 @@ void CtrlPanel::switchInput()
 {
     if (inputFields.empty()) return;
 
-    selectedField->setDisplayMode(DM_SHOW);
+    if (selectedField > -1) inputFields[selectedField].setDisplayMode(DM_SHOW);
 
-    selectedField++;
-    if (selectedField == inputFields.end()) selectedField = inputFields.begin();
-
-    selectedField->setDisplayMode(DM_FLASH);
+    selectedField = (selectedField + 1) % inputFields.size();
+    inputFields[selectedField].setDisplayMode(DM_FLASH);
 }
 
 void CtrlPanel::inputUp()
 {
-    if (inputFields.empty()) return;
+    if (inputFields.empty() || selectedField == -1) return;
 
-    selectedField->increase();
+    inputFields[selectedField].increase();
     inputHandler();
 }
 
 void CtrlPanel::inputDown()
 {
-    if (inputFields.empty()) return;
+    if (inputFields.empty() || selectedField == -1) return;
 
-    selectedField->decrease();
+    inputFields[selectedField].decrease();
     inputHandler();
 }
-
-Pattern &CtrlPanel::getPanelLogo() { return PanelLogo; }
 
 vector<InputDigit> &CtrlPanel::getInputFields() { return inputFields; }
 
@@ -100,42 +187,52 @@ vector<InputDigit> &CtrlPanel::getInputFields() { return inputFields; }
 /*************************************************************/
 
 WaterCtrl::WaterCtrl()
-:
 {
-    // 设置水控Logo
-    Pattern &PanelLogo = getPanelLogo();
-    PanelLogo.setFont(u8g2_font_wqy16_t_gb2312b);
-    PanelLogo.setPatternCode("水");
-    PanelLogo.setPosition(30, 40);
-
     // 三个输入字段：开水最短时长，最长时长，水泵运行时长
     vector<InputDigit> &inputFields = getInputFields();
-    inputFields.emplace_back(InputDigit(u8g2_font_wqy16_t_gb2312b, posX + 120, posY + 40, 9, 1, 1, 1));
-    inputFields.emplace_back(InputDigit(u8g2_font_wqy16_t_gb2312b, posX + 150, posY + 40, 9, 1, 1, 1));
-    inputFields.emplace_back(InputDigit(u8g2_font_wqy16_t_gb2312b, posX + 230, posY + 40, 20, 1, 2, 1));
+
+    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+
+    inputFields[0].setPosition(getX() + 43, getY() + 30);
+    inputFields[1].setPosition(getX() + 65, getY() + 30);
+    inputFields[2].setPosition(getX() + 91, getY() + 55);
+
+    inputFields[0].setDigitCount(1);
+    inputFields[1].setDigitCount(1);
+    inputFields[2].setDigitCount(1);
+
+    inputFields[0].setLimit(1, 9);
+    inputFields[1].setLimit(1, 9);
+    inputFields[2].setLimit(1, 9);
+
+    inputFields[0].setValue(2);
+    inputFields[1].setValue(6);
+    inputFields[2].setValue(4);
+
+    // 注册所有Pattern对象
+    registerPattern(&inputFields[0]);
+    registerPattern(&inputFields[1]);
+    registerPattern(&inputFields[2]);
+
+    switchInput();
+    switchInput();
 }
 
-void WaterCtrl::draw()
+void WaterCtrl::drawSpecific(U8G2 *u8g2Ptr)
 {
     // panel外框
-    display.drawRectangle(getX() + 2, getY() + 2, getX() + 290 - 2, getY() + 56 - 2, ST7305_COLOR_BLACK);
+    u8g2Ptr->drawRFrame(getX(), getY(), 128, 70, 5);
 
-    // 固定文字
-    u8g2_for_st73xx.setFont(u8g2_font_wqy16_t_gb2312);
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 27, "水");
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 42, "控");
-    u8g2_for_st73xx.drawUTF8(getX() + 89, getY() + 40, "开水");
-    u8g2_for_st73xx.drawUTF8(getX() + 142, getY() + 40, "—");
-    u8g2_for_st73xx.drawUTF8(getX() + 175, getY() + 40, "秒");
-    u8g2_for_st73xx.drawUTF8(getX() + 203, getY() + 40, "保持");
-    u8g2_for_st73xx.drawUTF8(getX() + 264, getY() + 40, "分");
-
-    // panel Logo显示
-    getPanelLogo().draw();
+    // 固定文字图案
+    u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
+    u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "开水  -  秒");
+    u8g2Ptr->drawUTF8(getX() + 25, getY() + 55, "水泵启动  分");
 
     // 输入字段
-    for (auto &input : getInputFields())
-        input.draw();
+    for (auto &inputFields : getInputFields())
+        inputFields.draw(u8g2Ptr);
 }
 
 WaterSettings WaterCtrl::getSettings()
@@ -159,7 +256,14 @@ void WaterCtrl::setData(WaterSettings set)
     inputFields[2].setValue(set.pumpOnDuration);
 }
 
-void WaterCtrl::inputHandler() { }
+void WaterCtrl::inputHandler()
+{
+    vector<InputDigit> &inputFields = getInputFields();
+    if (inputFields[0].getValue() > inputFields[1].getValue())
+    {
+        inputFields[1].setValue(inputFields[0].getValue());
+    }
+}
 
 /*************************************************************/
 /*                         TempCtrl                          */
@@ -167,52 +271,35 @@ void WaterCtrl::inputHandler() { }
 
 TempCtrl::TempCtrl()
 {
-    // 设置温控Logo
-    Pattern &PanelLogo = getPanelLogo();
-    PanelLogo.setPatternSet(u8g2_font_wqy16_t_gb2312b);
-    PanelLogo.setPatternCode("温");
-    PanelLogo.setPosition(30, 40);
-    PanelLogo.setDisplayMode(DM_SHOW);
-
-    // 一个输入字段，水泵起始温度（该温度正负范围内启动）
+    // 一个输入字段，水泵设定温度（该温度正负范围内启动）
     vector<InputDigit> &inputFields = getInputFields();
-    inputFields.emplace_back(InputDigit(u8g2_font_wqy16_t_gb2312b, getX() + 120, getY() + 40, 9, 1, 1, 1));
+    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
 
-    // 当前温度显示
-    curTemp.setPatternSet(u8g2_font_wqy16_t_gb2312b);
-    curTemp.setPatternCode("30");
-    curTemp.setPosition(getX() + 100, getY() + 50);
-    curTemp.setDisplayMode(DM_SHOW);
+    // 设定温度显示
+    inputFields[0].setDigitCount(2);
+    inputFields[0].setPosition(80, 30);
+    inputFields[0].setLimit(25, 45);
+    inputFields[0].setValue(35);
+
+    // 注册所有Pattern对象
+    registerPattern(&inputFields[0]);
+
+    switchInput();
 }
 
-void TempCtrl::draw()
+void TempCtrl::drawSpecific(U8G2 *u8g2Ptr)
 {
-    // panel外框
-    display.drawRectangle(getX() + 2, getY() + 2, getX() + 290 - 2, getY() + 56 - 2, ST7305_COLOR_BLACK);
+    // 外框
+    u8g2Ptr->drawRFrame(getX(), getY(), 128, 45, 5);
 
-    // 固定文字
-    u8g2_for_st73xx.setFont(u8g2_font_wqy16_t_gb2312);
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 27, "温");
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 42, "控");
-    u8g2_for_st73xx.drawUTF8(getX() + 89, getY() + 40, "设定水温");
-    u8g2_for_st73xx.drawUTF8(getX() + 142, getY() + 40, "当前水温");
-    u8g2_for_st73xx.drawUTF8(getX() + 175, getY() + 40, "°C");
-    u8g2_for_st73xx.drawUTF8(getX() + 203, getY() + 40, "°C");
+    // 固定文字图案
+    u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
+    u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "设定水温    度");
 
-    // panel Logo显示
-    getPanelLogo().draw();
-
-    // 输入字段（设定温度）
-    for (auto &input : getInputFields())
-        input.draw();
-
-    // 当前温度
-    string strTemp = to_string(tempC);
-    curTemp.setPatternCode(strTemp.c_str());
-    curTemp.draw();
+    // 输入字段
+    for (auto &inputFields : getInputFields())
+        inputFields.draw(u8g2Ptr);
 }
-
-void TempCtrl::setCurTemp(int temp) { tempC = temp; }
 
 int TempCtrl::getSettings() { return getInputFields()[0].getValue(); }
 
@@ -230,57 +317,75 @@ void TempCtrl::inputHandler() { }
 
 TimeCtrl::TimeCtrl()
 {
-    // 设置温控Logo
-    Pattern &PanelLogo = getPanelLogo();
-    PanelLogo.setPatternSet(u8g2_font_wqy16_t_gb2312b);
-    PanelLogo.setPatternCode("时");
-    PanelLogo.setPosition(30, 40);
-    PanelLogo.setDisplayMode(DM_SHOW);
-
-    // 12个输入字段，三组循环泵有效时段
+    // 三组循环泵有效时段
     vector<InputDigit> &inputFields = getInputFields();
     for (int i = 0; i < 3; i++)
     {
-        inputFields.emplace_back(InputDigit(u8g2_font_wqy16_t_gb2312b, getX() + 80, getY() + i * 20, 0, 23, 2, 0));
-        inputFields.emplace_back(InputDigit(u8g2_font_wqy16_t_gb2312b, getX() + 120, getY() + i * 20, 0, 59, 2, 0));
-        inputFields.emplace_back(InputDigit(u8g2_font_wqy16_t_gb2312b, getX() + 200, getY() + i * 20, 0, 23, 2, 0));
-        inputFields.emplace_back(InputDigit(u8g2_font_wqy16_t_gb2312b, getX() + 240, getY() + i * 20, 0, 59, 2, 0));
+        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+
+        inputFields[i * 4 + 0].setPosition(getX() + 7 + 27 * 0, getY() + 60 + i * 25);
+        inputFields[i * 4 + 1].setPosition(getX() + 7 + 27 * 1, getY() + 60 + i * 25);
+        inputFields[i * 4 + 2].setPosition(getX() + 7 + 27 * 2, getY() + 60 + i * 25);
+        inputFields[i * 4 + 3].setPosition(getX() + 7 + 27 * 3, getY() + 60 + i * 25);
+
+        inputFields[i * 4 + 0].setLimit(0, 23);
+        inputFields[i * 4 + 1].setLimit(0, 59);
+        inputFields[i * 4 + 2].setLimit(0, 23);
+        inputFields[i * 4 + 3].setLimit(0, 59);
+
+        for (int j = 0; j < 4; j++)
+        {
+            inputFields[i * 4 + j].setDigitCount(2);
+            inputFields[i * 4 + j].setValue(0);
+        }
     }
 
-    // +1天提示
+    // 三个“+1天”标识
     for (int i = 0; i < 3; i++)
     {
-        dayPlusSign.emplace_back(Pattern(u8g2_font_wqy16_t_gb2312b, "+1", getX() + 270, getY() + i * 20));
-        dayPlusSign[i].setDisplayMode(DM_HIDE);
+        dayPlusSign.emplace_back(Pattern((uint8_t *)u8g2_font_busdisplay11x5_tr, PT_FONT));
+
+        dayPlusSign[i].setCode("+1");
+        dayPlusSign[i].setPosition(getX() + 112, getY() + 55 + i * 25);
+        // dayPlusSign[i].setDisplayMode(DM_HIDE);
     }
+
+    // 注册所有Pattern对象
+    for (int i = 0; i < 12; i++)
+        registerPattern(&inputFields[i]);
+    for (int i = 0; i < 3; i++)
+        registerPattern(&dayPlusSign[i]);
+
+    switchInput();
+    switchInput();
 }
 
-void TimeCtrl::draw()
+void TimeCtrl::drawSpecific(U8G2 *u8g2Ptr)
 {
-    // panel外框
-    display.drawRectangle(getX() + 2, getY() + 2, getX() + 290 - 2, getY() + 56 - 2, ST7305_COLOR_BLACK);
+    // 外框
+    u8g2Ptr->drawRFrame(getX(), getY(), 128, 130, 5);
 
-    // panel Logo显示
-    getPanelLogo().draw();
+    // 固定文字图案
+    u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
+    u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "水温保持时段：");
+    u8g2Ptr->setFont(u8g2_font_logisoso16_tn);
+    for (int i = 0; i < 3; i++)
+    {
+        u8g2Ptr->drawUTF8(getX() + 1 + 27 * 1, getY() + 60 + i * 25, ":");
+        u8g2Ptr->drawUTF8(getX() - 1 + 27 * 2, getY() + 60 + i * 25, "-");
+        u8g2Ptr->drawUTF8(getX() + 1 + 27 * 3, getY() + 60 + i * 25, ":");
+    }
 
     // 输入字段
-    for (auto &input : getInputFields())
-        input.draw();
+    for (auto &inputFields : getInputFields())
+        inputFields.draw(u8g2Ptr);
 
-    // +1天提示符
-    for (auto &it : dayPlusSign)
-        it.draw();
-
-    // 固定文字
-    u8g2_for_st73xx.setFont(u8g2_font_wqy16_t_gb2312);
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 27, "定");
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 42, "时");
-    u8g2_for_st73xx.drawUTF8(getX() + 50, getY() + 20, "1");
-    u8g2_for_st73xx.drawUTF8(getX() + 50, getY() + 40, "2");
-    u8g2_for_st73xx.drawUTF8(getX() + 50, getY() + 60, "3");
-    u8g2_for_st73xx.drawUTF8(getX() + 170, getY() + 20, "-");
-    u8g2_for_st73xx.drawUTF8(getX() + 170, getY() + 40, "-");
-    u8g2_for_st73xx.drawUTF8(getX() + 170, getY() + 60, "-");
+    // "+1"标识
+    for (int i = 0; i < 3; i++)
+        dayPlusSign[i].draw(u8g2Ptr);
 }
 
 TimeSettings TimeCtrl::getSettings()
@@ -290,7 +395,7 @@ TimeSettings TimeCtrl::getSettings()
 
     for (int i = 0; i < 3; i++)
     {
-        ret.startHour[i]   = inputFields[i * 4].getValue();
+        ret.startHour[i]   = inputFields[i * 4 + 0].getValue();
         ret.startMinute[i] = inputFields[i * 4 + 1].getValue();
         ret.endHour[i]     = inputFields[i * 4 + 2].getValue();
         ret.endMinute[i]   = inputFields[i * 4 + 3].getValue();
@@ -325,6 +430,11 @@ void TimeCtrl::inputHandler()
             dayPlusSign[i].setDisplayMode(DM_SHOW);
         else
             dayPlusSign[i].setDisplayMode(DM_HIDE);
+
+        if (beginT == 0 && endT % 60 == 0)
+            inputFields[i * 4 + 2].setLimit(0, 24);
+        else
+            inputFields[i * 4 + 2].setLimit(0, 23);
     }
 }
 
@@ -332,54 +442,40 @@ void TimeCtrl::inputHandler()
 /*                         其他面板                           */
 /*************************************************************/
 
-void FlowIndicator::setData(int flow) { this->flow = flow; }
-
-void FlowIndicator::draw()
+PumpIndicator::PumpIndicator()
+: pumpSym((uint8_t *)cycle, 1300, 6)
+, currentSym((uint8_t *)u8g2_font_fub20_tn, PT_FONT)
 {
-    display.drawRectangle(getX() + 2, getY() + 2, getX() + 98, getY() + 38, ST7305_COLOR_BLACK);
-    string strFlow = to_string(flow);
-    u8g2_for_st73xx.setFont(u8g2_font_wqy16_t_gb2312);
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 20, "流量");
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 20, strFlow.c_str());
+    pumpSym.setPosition(14, 5);
+    pumpSym.setBMPSize(100, 100);
+    pumpSym.setRollingInterval(100);
+
+    currentSym.setPosition(44, 58);
+
+    setPumpOnOff(true);
+    setWaterCurrent(3.5);
 }
 
-void DurationIndicator::setData(int sec) { this->duration = sec; }
-
-void DurationIndicator::draw()
+void PumpIndicator::drawSpecific(U8G2 *u8g2Ptr)
 {
-    display.drawRectangle(getX() + 2, getY() + 2, getX() + 98, getY() + 38, ST7305_COLOR_BLACK);
-    char timeBuf[7];
-    sprintf(timeBuf, "%02d:%02ds", duration / 60, duration % 60);
-    u8g2_for_st73xx.setFont(u8g2_font_wqy16_t_gb2312);
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 20, "时长");
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 20, timeBuf);
+    pumpSym.draw(u8g2Ptr);
+
+    char buf[5];
+    if (waterCurrent > 9.9) waterCurrent = 9.9;
+    snprintf(buf, sizeof(buf), "%.1f", waterCurrent);
+    currentSym.setCode(buf);
+
+    currentSym.draw(u8g2Ptr);
+
+    u8g2Ptr->setFont(u8g2_font_bitcasual_tr); // 11x11
+    u8g2Ptr->drawStr(getX() + 46, getY() + 73, "L  min");
+    u8g2Ptr->drawStr(getX() + 55, getY() + 73, "/");
 }
 
-void CurTimeIndicator::setData(int h, int m, int s)
+void PumpIndicator::setPumpOnOff(bool isOn)
 {
-    hh = h;
-    mm = m;
-    ss = s;
+    pumpIsOn = isOn;
+    pumpSym.setRollOnOff(isOn);
 }
 
-void CurTimeIndicator::draw()
-{
-    char timeBuf[9];
-    sprintf(timeBuf, "%02d:%02d:%02d", hh, mm, ss);
-    u8g2_for_st73xx.setFont(u8g2_font_wqy16_t_gb2312);
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 20, timeBuf);
-}
-
-void StatusIndicator::setWifi(bool connected) { wifiConnected = connected; }
-
-void StatusIndicator::draw()
-{
-    display.drawRectangle(getX() + 2, getY() + 2, getX() + 98, getY() + 38, ST7305_COLOR_BLACK);
-    u8g2_for_st73xx.setFont(u8g2_font_wqy16_t_gb2312);
-    u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 20, "状态");
-    u8g2_for_st73xx.setFont(u8g2_font_wqy16_t_gb2312);
-    if (wifiConnected)
-        u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 20, "0");
-    else
-        u8g2_for_st73xx.drawUTF8(getX() + 10, getY() + 20, "1");
-}
+void PumpIndicator::setWaterCurrent(float current) { waterCurrent = current; }

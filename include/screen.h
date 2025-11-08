@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <functional>
+#include <U8g2lib.h>
 #include "pattern.h"
 #include "panel.h"
 
@@ -15,7 +16,7 @@ struct Settings
     int waterMinSec;
     int waterMaxSec;
     int pumpOnDuration;
-    int setTemp;
+    int demandTemp;
 };
 
 class Screen
@@ -32,26 +33,31 @@ public:
     void updateTime(int h, int m, int s);
     void updateDuration(int sec);
     void importSettings(Settings set);
-    void setCallbackSettings(function<Settings()>);
+    void setReportSettings_cb(function<Settings()>);
 
 private:
-    MultiSymbol pumpSymbol;
-    TimeCtrl timePanel;
-    WaterCtrl waterPanel;
-    TempCtrl tempPanel;
-    FlowIndicator flowInfo;
-    DurationIndicator durationInfo;
-    CurTimeIndicator timeInfo;
-    StatusIndicator statusInfo;
+    vector<U8G2_SH1108_128X160_F_4W_HW_SPI> u8g2;
 
-    vector<CtrlPanel &> panels;
-    Settings settings;
-    int curTime;
-    int duration;
-    int curPanel;
-    function<Settings()> callbackSettings;
+    PumpIndicator pumpInd;
+    TimeCtrl      timePanel;
+    WaterCtrl     waterPanel;
+    TempCtrl      tempPanel;
+    // FlowIndicator flowInfo;
+    // DurationIndicator durationInfo;
+    // CurTimeIndicator timeInfo;
+    // StatusIndicator statusInfo;
 
-    void wrapupSettings();
+    vector<CtrlPanel *>  panels;
+    vector<Panel *>      indicators;
+    int                  curPanel = -1;
+    Settings             settings;
+    int                  curTime;
+    int                  duration;
+    function<Settings()> reportSettings_cb;
+    unsigned long        fpsMillis = 0;
+    int                  fpsCount  = 0;
+    float                fps       = 0;
+    void                 wrapupSettings();
 };
 
 #endif // SCREEN_H

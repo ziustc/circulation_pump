@@ -27,21 +27,37 @@ class Panel
 {
 public:
     Panel();
-    void         setU8G2(U8G2 *u8g2Ptr);
-    void         setPosition(uint16_t left, uint16_t top);
-    virtual void draw() = 0;
+    virtual void setPosition(uint16_t left, uint16_t top);
+    uint16_t     getX();
+    uint16_t     getY();
+    void         setDisplayMode(DisplayMode mode);
+    void         setFlashInterval(int interval);
+    void         draw(U8G2 *u8g2Ptr); // 统一接口，处理完显示和闪烁后，调用虚函数drawCore()，由派生类自己实现
 
 protected:
-    U8G2    *u8g2;
-    uint16_t posX;
-    uint16_t posY;
+    void registerPattern(Pattern *newPattern);
+
+private:
+    vector<Pattern *> allPatterns;
+    uint16_t          posX;
+    uint16_t          posY;
+    DisplayMode       dispMode;                        // 显示模式（show/hide/flash）
+    bool              isVisibleNow;                    // 当前是否可见
+    long              lastSwitchTime;                  // flash状态时的上次切换时间
+    int               flashInterval;                   // 闪烁间隔时间
+    virtual void      drawSpecific(U8G2 *u8g2Ptr) = 0; // 纯虚函数，由draw()调用，在派生类中实现
 };
+
+////////////////////////////////////////////////////////////
+//                      CtrlPanel                         //
+////////////////////////////////////////////////////////////
 
 class CtrlPanel : public Panel
 {
 public:
     CtrlPanel();
     void setSelected(bool sel);
+    bool getSelected();
     void setActive(bool active);
     bool getActive();
     void switchInput();
@@ -49,107 +65,70 @@ public:
     void inputDown();
 
 protected:
-    Pattern            &getPanelLogo();
     vector<InputDigit> &getInputFields();
 
 private:
-    bool                         isSelected;
-    bool                         isActive;
-    Pattern                      PanelLogo;
-    vector<InputDigit>           inputFields;
-    vector<InputDigit>::iterator selectedField;
-    void virtual inputHandler() = 0;
+    bool               isSelected;
+    bool               isActive;
+    vector<InputDigit> inputFields;
+    int                selectedField = -1;
+    void virtual inputHandler()      = 0;
 };
 
 class WaterCtrl : public CtrlPanel
 {
 public:
     WaterCtrl();
-    void draw() override;
     WaterSettings getSettings();
     void          setData(WaterSettings set);
 
 private:
     void inputHandler() override;
+    void drawSpecific(U8G2 *u8g2Ptr) override;
 };
 
 class TempCtrl : public CtrlPanel
 {
 public:
     TempCtrl();
-    void draw() override;
-    void setCurTemp(int temperature);
     int  getSettings();
     void setData(int set);
 
 private:
-    Pattern curTemp;
-    int     tempC;
-    void    inputHandler() override;
+    void inputHandler() override;
+    void drawSpecific(U8G2 *u8g2Ptr) override;
 };
 
 class TimeCtrl : public CtrlPanel
 {
 public:
     TimeCtrl();
-    void         draw() override;
     TimeSettings getSettings();
     void         setData(TimeSettings set);
 
 private:
     vector<Pattern> dayPlusSign;
     void            inputHandler() override;
+    void            drawSpecific(U8G2 *u8g2Ptr) override;
 };
 
-class Indicator : public Panel
-{
-public:
-    Indicator() { };
-    virtual void draw() = 0;
-};
+////////////////////////////////////////////////////////////
+//                      Indicator                         //
+////////////////////////////////////////////////////////////
 
-class FlowIndicator : public Indicator
+class PumpIndicator : public Panel
 {
 public:
-    FlowIndicator() { };
-    void setData(int flow);
-    void draw();
+    PumpIndicator();
+    void setPumpOnOff(bool isON);
+    void setWaterCurrent(float current);
 
 private:
-    int flow;
-};
-
-class DurationIndicator : public Panel
-{
-public:
-    DurationIndicator() { };
-    void setData(int sec);
-    void draw();
-
-private:
-    int duration;
-};
-
-class CurTimeIndicator : public Panel
-{
-public:
-    CurTimeIndicator() { };
-    void setData(int h, int m, int s);
-    void draw();
-
-private:
-    int hh, mm, ss;
-};
-
-class StatusIndicator : public Panel
-{
-public:
-    StatusIndicator() { };
-    void setWifi(bool connected);
-    void draw();
-
-private:
-    bool wifiConnected;
+    bool  pumpIsOn;
+    float waterCurrent;
+    MultiSymbol pumpSym;
+    Pattern currentSym;
+    void  drawSpecific(U8G2 *u8g2Ptr) override;
 };
 
 #endif

@@ -1,37 +1,49 @@
+#include <stdio.h>
 #include <vector>
 #include <functional>
+#include <U8g2lib.h>
 #include "screen.h"
 #include "panel.h"
 #include "pattern.h"
-#include "display_driver.h"
+#include "symbols.h"
 
 using namespace std;
 
 Screen::Screen()
 {
-    // 循环泵动态符号
-    pumpSymbol.setPosition(5, 84);
-    pumpSymbol.setPatternSet(u8g2_font_wqy16_t_gb2312b);
-    pumpSymbol.setDisplayMode(DM_SHOW);
-    pumpSymbol.setRollingInterval(100);
-    pumpSymbol.setSymbolCount(5);
-    pumpSymbol.setSymbolIndex(0);
+    u8g2.emplace_back(U8G2_R0, /* cs=*/17, /* dc=*/3, /* reset=*/8);
+    // u8g2.emplace_back(U8G2_R0, /* cs=*/17, /* dc=*/3, /* reset=*/8);
+    // u8g2.emplace_back(U8G2_R0, /* cs=*/17, /* dc=*/3, /* reset=*/8);
+
+    for (int i = 0; i < 1; i++)
+    {
+        u8g2[i].begin();
+        u8g2[i].enableUTF8Print();
+        u8g2[i].setBusClock(20000000);
+    }
+
+    // 泵循环标
+    pumpInd.setPosition(0, 0);
+    pumpInd.setPumpOnOff(true);
 
     // 三个主控面板定位
-    timePanel.setPosition(80, 5);
-    waterPanel.setPosition(80, 123);
-    tempPanel.setPosition(390, 5);
+    timePanel.setPosition(0, 0);
+    waterPanel.setPosition(0, 0);
+    tempPanel.setPosition(0, 80);
 
     // 将三个主要的输入面板放到vector中，以便快速循环切换焦点，注意三个面板的顺序
-    panels.push_back(timePanel);
-    panels.push_back(waterPanel);
-    panels.push_back(tempPanel);
+    panels.push_back(&timePanel);
+    panels.push_back(&waterPanel);
+    panels.push_back(&tempPanel);
+
+    // 将所有其他Indicator放到vector中
+    indicators.push_back(&pumpInd);
 
     // 其他面板定位
-    flowInfo.setPosition(5, 5);
-    durationInfo.setPosition(700, 5);
-    timeInfo.setPosition(700, 55);
-    statusInfo.setPosition(700, 105);
+    // flowInfo.setPosition(5, 5);
+    // durationInfo.setPosition(700, 5);
+    // timeInfo.setPosition(700, 55);
+    // statusInfo.setPosition(700, 105);
 
     // 初始状态
     curPanel = -1;
@@ -42,133 +54,114 @@ void Screen::onShift()
     // 如果当前没有选中任何面板，则选中第一个面板
     if (curPanel == -1)
     {
-        curPanel++;
-        panels[curPanel].setSelected(true);
+        curPanel = 0;
+        panels[curPanel]->setSelected(true);
         return;
     }
 
-    // 如果当前选中的面板是在激活（设置）状态，则在面板内部切换输入字段
-    if (panels[curPanel].getActive())
+    // 如果当前已选中某个面板，但没有激活，则轮换选中的面板
+    if (!(panels[curPanel]->getActive()))
     {
-        panels[curPanel].switchInput();
+        panels[curPanel]->setSelected(false);
+        curPanel = (curPanel + 1) % panels.size();
+        panels[curPanel]->setSelected(true);
         return;
     }
 
-    // 如果面板只是选中没有激活，则轮换选中的面板
-    panels[curPanel++].setSelected(false);
-    if (curPanel >= 3)
-        curPanel = -1;
-    else
-        panels[curPanel].setSelected(true);
+    // 当前选中的面板是在激活（设置）状态，则在面板内部切换输入字段
+    panels[curPanel]->switchInput();
+    return;
 }
 
 void Screen::onOK()
 {
     // 如果当前没有选中任何面板，点OK无效
-    if (curPanel == -1)
-        return;
-
-    // 如果当前面板在激活状态（正在设置该面板参数），点OK将退出激活，退出设定状态
-    if (panels[curPanel].getActive())
-    {
-        panels[curPanel].setActive(false);
-        curPanel = -1;
-        wrapupSettings();
-        callbackSettings(); // 回调，将所有参数返回给主控
-    }
+    if (curPanel == -1) return;
 
     // 如果当前面板被选中，但未激活，点OK将激活面板，进入设定状态
+    if (!(panels[curPanel]->getActive()))
+    {
+        panels[curPanel]->setActive(true);
+    }
+
+    // 如果当前面板在激活状态（正在设置该面板参数），点OK将退出激活，并发送设置结果给主控
     else
     {
-        panels[curPanel].setSelected(false);
-        panels[curPanel].setActive(true);
+        panels[curPanel]->setActive(false);
+        curPanel = -1;
+        wrapupSettings();
+        reportSettings_cb(); // 回调，将所有参数返回给主控
     }
 }
 
 void Screen::onUp()
 {
     // 如果当前没有选中任何面板，点UP无效
-    if (curPanel == -1)
-        return;
+    if (curPanel == -1) return;
 
     // 如果当前面板只是被选中，但未激活（不在设置状态），点UP无效
-    if (!(panels[curPanel].getActive()))
-        return;
+    if (!(panels[curPanel]->getActive())) return;
 
     // 如果当前面板激活（在设置状态）
-    panels[curPanel].inputUp();
+    panels[curPanel]->inputUp();
 }
 
 void Screen::onDown()
 {
     // 如果当前没有选中任何面板，点UP无效
-    if (curPanel == -1)
-        return;
+    if (curPanel == -1) return;
 
     // 如果当前面板只是被选中，但未激活（不在设置状态），点UP无效
-    if (!(panels[curPanel].getActive()))
-        return;
+    if (!(panels[curPanel]->getActive())) return;
 
     // 如果当前面板激活（在设置状态）
-    panels[curPanel].inputDown();
+    panels[curPanel]->inputDown();
 }
 
-void Screen::updateTempC(int temp)
-{
-    tempPanel.setCurTemp(temp);
-}
+// void Screen::updateTempC(int temp) { tempPanel.setCurTemp(temp); }
 
-void Screen::updateVolume(int volume)
-{
-    flowInfo.setData(volume);
-}
+// void Screen::updateVolume(int volume) { flowInfo.setData(volume); }
 
-void Screen::updateTime(int h, int m, int s)
-{
-    timeInfo.setData(h, m, s);
-}
+// void Screen::updateTime(int h, int m, int s) { timeInfo.setData(h, m, s); }
 
-void Screen::setCallbackSettings(function<Settings()> cb)
-{
-    callbackSettings = cb;
-}
+void Screen::setReportSettings_cb(function<Settings()> cb) { reportSettings_cb = cb; }
 
 void Screen::wrapupSettings()
 {
-    TimeSettings timeSettings = timePanel.getSettings();
+    TimeSettings  timeSettings  = timePanel.getSettings();
     WaterSettings waterSettings = waterPanel.getSettings();
-    int tempSettings = tempPanel.getSettings();
+    int           tempSettings  = tempPanel.getSettings();
 
     for (int i = 0; i < 3; i++)
     {
-        settings.startHour[i] = timeSettings.startHour[i];
+        settings.startHour[i]   = timeSettings.startHour[i];
         settings.startMinute[i] = timeSettings.startMinute[i];
-        settings.endHour[i] = timeSettings.endHour[i];
-        settings.endMinute[i] = timeSettings.endMinute[i];
+        settings.endHour[i]     = timeSettings.endHour[i];
+        settings.endMinute[i]   = timeSettings.endMinute[i];
     }
-    settings.waterMinSec = waterSettings.minSec;
-    settings.waterMaxSec = waterSettings.maxSec;
+    settings.waterMinSec    = waterSettings.minSec;
+    settings.waterMaxSec    = waterSettings.maxSec;
     settings.pumpOnDuration = waterSettings.pumpOnDuration;
-    settings.setTemp = tempSettings;
+    settings.demandTemp     = tempSettings;
 }
 
 void Screen::importSettings(Settings set)
 {
-    TimeSettings timeSettings;
+    TimeSettings  timeSettings;
     WaterSettings waterSettings;
-    int tempSettings;
+    int           tempSettings;
 
     for (int i = 0; i < 3; i++)
     {
-        timeSettings.startHour[i] = set.startHour[i];
+        timeSettings.startHour[i]   = set.startHour[i];
         timeSettings.startMinute[i] = set.startMinute[i];
-        timeSettings.endHour[i] = set.endHour[i];
-        timeSettings.endMinute[i] = set.endMinute[i];
+        timeSettings.endHour[i]     = set.endHour[i];
+        timeSettings.endMinute[i]   = set.endMinute[i];
     }
-    waterSettings.minSec = set.waterMinSec;
-    waterSettings.maxSec = set.waterMaxSec;
+    waterSettings.minSec         = set.waterMinSec;
+    waterSettings.maxSec         = set.waterMaxSec;
     waterSettings.pumpOnDuration = set.pumpOnDuration;
-    tempSettings = set.setTemp;
+    tempSettings                 = set.demandTemp;
 
     timePanel.setData(timeSettings);
     waterPanel.setData(waterSettings);
@@ -177,14 +170,72 @@ void Screen::importSettings(Settings set)
 
 void Screen::draw()
 {
-    pumpSymbol.draw();
+    static unsigned long shiftMillis = 0;
+    static int           shiftIndex  = 0;
 
-    timePanel.draw();
-    waterPanel.draw();
-    tempPanel.draw();
+    static unsigned long buttonMillis  = 0;
+    static bool          buttonPressed = false;
 
-    flowInfo.draw();
-    durationInfo.draw();
-    timeInfo.draw();
-    statusInfo.draw();
+    unsigned long curMillis = millis();
+    char          buf[20];
+
+    // 计算FPS
+    fpsCount++;
+    if (curMillis - fpsMillis >= 500)
+    {
+        fps       = (float)fpsCount * 1000 / (curMillis - fpsMillis);
+        fpsMillis = curMillis;
+        fpsCount  = 0;
+    }
+
+    // 切换屏幕
+    if (curMillis - shiftMillis >= 5000)
+    {
+        shiftIndex  = (shiftIndex + 1) % 3;
+        shiftMillis = curMillis;
+    }
+
+    // 按键
+    if (curMillis - buttonMillis >= 200)
+    {
+        buttonPressed = true;
+        buttonMillis  = curMillis;
+    }
+
+    // 刷新所有屏幕
+    u8g2[0].clearBuffer();
+
+    // 显示FPS
+    snprintf(buf, sizeof(buf), "fps = %.1f", fps);
+    u8g2[0].setFont(u8g2_font_bitcasual_tr); // 11x11
+    u8g2[0].drawStr(10, 150, buf);
+
+    if (shiftIndex == 0)
+    {
+        pumpInd.draw(&u8g2[0]);
+    }
+    else if (shiftIndex == 1)
+    {
+        timePanel.draw(&u8g2[0]);
+    }
+    else
+    {
+        waterPanel.draw(&u8g2[0]);
+        tempPanel.draw(&u8g2[0]);
+    }
+
+    if (buttonPressed)
+    {
+        for (auto pnl : panels)
+            pnl->inputUp();
+        buttonPressed = false;
+    }
+
+    // for (auto pnl : panels)
+    //     pnl->draw(&u8g2[0]);
+
+    // for (auto ind : indicators)
+    //     ind->draw(&u8g2[0]);
+
+    u8g2[0].sendBuffer();
 }
