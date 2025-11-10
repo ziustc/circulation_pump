@@ -215,17 +215,17 @@ void Screen::draw()
     u8g2[0].sendBuffer();
 
     u8g2[1].clearBuffer();
-    // 显示FPS
-    snprintf(buf, sizeof(buf), "fps = %.1f", fps);
-    u8g2[1].setFont(u8g2_font_bitcasual_tr); // 11x11
-    u8g2[1].drawStr(10, 150, buf);
     timePanel.draw(&u8g2[1]);
     u8g2[1].sendBuffer();
 
     u8g2[2].clearBuffer();
+    // 显示FPS
+    snprintf(buf, sizeof(buf), "fps = %.1f", fps);
+    u8g2[2].setFont(u8g2_font_bitcasual_tr); // 11x11
+    u8g2[2].drawStr(10, 150, buf);
     waterPanel.draw(&u8g2[2]);
     tempPanel.draw(&u8g2[2]);
-    u8g2[2].clearBuffer();
+    u8g2[2].sendBuffer();
 
     u8g2[3].clearBuffer();
     timePanel.draw(&u8g2[3]);
