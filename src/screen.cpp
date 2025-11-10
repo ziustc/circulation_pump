@@ -12,8 +12,8 @@ using namespace std;
 Screen::Screen()
 {
     u8g2.emplace_back(U8G2_R0, /* cs=*/38, /* dc=*/39, /* reset=*/40);
-    u8g2.emplace_back(U8G2_R0, /* cs=*/17, /* dc=*/3, /* reset=*/8);
     u8g2.emplace_back(U8G2_R0, /* cs=*/18, /* dc=*/15, /* reset=*/16);
+    u8g2.emplace_back(U8G2_R0, /* cs=*/17, /* dc=*/3, /* reset=*/8);
     u8g2.emplace_back(U8G2_R0, /* cs=*/41, /* dc=*/42, /* reset=*/2);
 
     for (int i = 0; i < 4; i++)

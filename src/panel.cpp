@@ -222,6 +222,8 @@ WaterCtrl::WaterCtrl()
 
 void WaterCtrl::drawSpecific(U8G2 *u8g2Ptr)
 {
+    vector<InputDigit> inputFields = getInputFields();
+
     // panel外框
     u8g2Ptr->drawRFrame(getX(), getY(), 128, 70, 5);
 
@@ -229,6 +231,10 @@ void WaterCtrl::drawSpecific(U8G2 *u8g2Ptr)
     u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
     u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "开水  -  秒");
     u8g2Ptr->drawUTF8(getX() + 25, getY() + 55, "水泵启动  分");
+
+    // inputFields[0].draw(u8g2Ptr, getX() + 43, getY() + 30);
+    // inputFields[1].draw(u8g2Ptr, getX() + 65, getY() + 30);
+    // inputFields[2].draw(u8g2Ptr, getX() + 91, getY() + 55);
 
     // 输入字段
     for (auto &inputFields : getInputFields())

@@ -32,7 +32,7 @@ public:
     uint16_t     getY();
     void         setDisplayMode(DisplayMode mode);
     void         setFlashInterval(int interval);
-    void         draw(U8G2 *u8g2Ptr); // 统一接口，处理完显示和闪烁后，调用虚函数drawCore()，由派生类自己实现
+    void         draw(U8G2 *u8g2Ptr);       // 统一接口，处理完显示和闪烁后，调用虚函数drawCore()，由派生类自己实现
 
 protected:
     void registerPattern(Pattern *newPattern);
@@ -124,11 +124,11 @@ public:
     void setWaterCurrent(float current);
 
 private:
-    bool  pumpIsOn;
-    float waterCurrent;
+    bool        pumpIsOn;
+    float       waterCurrent;
     MultiSymbol pumpSym;
-    Pattern currentSym;
-    void  drawSpecific(U8G2 *u8g2Ptr) override;
+    Pattern     currentSym;
+    void        drawSpecific(U8G2 *u8g2Ptr) override;
 };
 
 #endif

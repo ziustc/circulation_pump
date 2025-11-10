@@ -64,6 +64,28 @@ void Pattern::setFlashInterval(int interval) { flashInterval = interval; }
 
 void Pattern::draw(U8G2 *u8g2Ptr) { drawCore(u8g2Ptr); }
 
+/**
+ * 
+ */
+void Pattern::draw(U8G2 *u8g2Ptr, uint16_t x, uint16_t y)
+{
+    posX = x;
+    posY = y;
+    draw(u8g2Ptr);
+    // 由于draw()是虚函数，这里会在设置好位置后，重新调用派生类的draw()函数，
+    // 然后在从派生类的draw()调用基类的drawCore()完整顺序是：
+    //
+    // InputDigit::(继承的) Pattern::draw(&u8g2, x, y)
+    // ↓
+    // Pattern::draw(&u8g2, x, y) 的内部逻辑（设置位置后调用虚函数 draw(&u8g2)）
+    // ↓
+    // InputDigit::draw(&u8g2)   ← 因为 draw() 是虚函数，被重写了
+    // ↓
+    // InputDigit::draw(&u8g2) 内部的绘制逻辑（例如计算数值等）
+    // ↓
+    // Pattern::drawCore(&u8g2)  ← 最终执行图像写入
+}
+
 void Pattern::drawCore(U8G2 *u8g2Ptr)
 {
     long currentTime = millis();
@@ -211,8 +233,8 @@ void MultiSymbol::rollSymbolBack() { symbolIndex = (symbolIndex - 1 + symbolCnt)
 
 void MultiSymbol::draw(U8G2 *u8g2Ptr)
 {
-    long currentTime = millis();
-    int symbolOffset = symbolIndex * symbolLen;
+    long currentTime  = millis();
+    int  symbolOffset = symbolIndex * symbolLen;
 
     if (symbolRolling && (currentTime - lastRollingTime >= rollingInterval))
     {
