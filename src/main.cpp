@@ -23,6 +23,10 @@ void setup(void)
     Serial.println("Hello monoTFT");
 
     // 测试printf
-  }
+}
 
-void loop(void) { scr.draw(); }
+void loop(void)
+{
+    scr.draw();
+    // 做个小测试
+}
