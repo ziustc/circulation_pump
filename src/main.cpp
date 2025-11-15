@@ -4,6 +4,9 @@
 #include "screen.h"
 #include "panel.h"
 #include "pattern.h"
+#include "button.h"
+
+using namespace std;
 
 // 让 printf 输出到 Serial
 extern "C" int _write(int file, char *ptr, int len)
@@ -16,13 +19,21 @@ extern "C" int _write(int file, char *ptr, int len)
 }
 
 Screen scr;
+Button btnUp;
+Button btnDown;
+Button btnOK;
+Button btnShift;
+Button btnStart;
 
 void setup(void)
 {
     Serial.begin(115200);
     Serial.println("Hello monoTFT");
 
-    // 测试printf
-  }
+    btnUp.setCallbackClick([]() { scr.onUp(); });
+    btnDown.setCallbackClick([]() { scr.onDown(); });
+    btnOK.setCallbackClick([]() { scr.onOK(); });
+    btnShift.setCallbackClick([]() { scr.onShift(); });
+}
 
 void loop(void) { scr.draw(); }

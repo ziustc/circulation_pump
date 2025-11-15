@@ -3,6 +3,7 @@
 #include "panel.h"
 #include "pattern.h"
 #include "symbols.h"
+#include "common.h"
 
 using namespace std;
 
@@ -191,9 +192,9 @@ WaterCtrl::WaterCtrl()
     // 三个输入字段：开水最短时长，最长时长，水泵运行时长
     vector<InputDigit> &inputFields = getInputFields();
 
-    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
     inputFields[0].setPosition(getX() + 43, getY() + 30);
     inputFields[1].setPosition(getX() + 65, getY() + 30);
@@ -228,7 +229,7 @@ void WaterCtrl::drawSpecific(U8G2 *u8g2Ptr)
     u8g2Ptr->drawRFrame(getX(), getY(), 128, 70, 5);
 
     // 固定文字图案
-    u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
+    u8g2Ptr->setFont(FONT_CHN_16);
     u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "开水  -  秒");
     u8g2Ptr->drawUTF8(getX() + 25, getY() + 55, "水泵启动  分");
 
@@ -279,7 +280,7 @@ TempCtrl::TempCtrl()
 {
     // 一个输入字段，水泵设定温度（该温度正负范围内启动）
     vector<InputDigit> &inputFields = getInputFields();
-    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
     // 设定温度显示
     inputFields[0].setDigitCount(2);
@@ -299,7 +300,7 @@ void TempCtrl::drawSpecific(U8G2 *u8g2Ptr)
     u8g2Ptr->drawRFrame(getX(), getY(), 128, 45, 5);
 
     // 固定文字图案
-    u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
+    u8g2Ptr->setFont(FONT_CHN_16);
     u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "设定水温    度");
 
     // 输入字段
@@ -327,10 +328,10 @@ TimeCtrl::TimeCtrl()
     vector<InputDigit> &inputFields = getInputFields();
     for (int i = 0; i < 3; i++)
     {
-        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
         inputFields[i * 4 + 0].setPosition(getX() + 7 + 27 * 0, getY() + 60 + i * 25);
         inputFields[i * 4 + 1].setPosition(getX() + 7 + 27 * 1, getY() + 60 + i * 25);
@@ -352,7 +353,7 @@ TimeCtrl::TimeCtrl()
     // 三个“+1天”标识
     for (int i = 0; i < 3; i++)
     {
-        dayPlusSign.emplace_back(Pattern((uint8_t *)u8g2_font_busdisplay11x5_tr, PT_FONT));
+        dayPlusSign.emplace_back(Pattern((uint8_t *)FONT_NARROW_SMALL, PT_FONT));
 
         dayPlusSign[i].setCode("+1");
         dayPlusSign[i].setPosition(getX() + 112, getY() + 55 + i * 25);
@@ -375,9 +376,9 @@ void TimeCtrl::drawSpecific(U8G2 *u8g2Ptr)
     u8g2Ptr->drawRFrame(getX(), getY(), 128, 130, 5);
 
     // 固定文字图案
-    u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
+    u8g2Ptr->setFont(FONT_CHN_16);
     u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "水温保持时段：");
-    u8g2Ptr->setFont(u8g2_font_logisoso16_tn);
+    u8g2Ptr->setFont(FONT_INPUT_DIGIT);
     for (int i = 0; i < 3; i++)
     {
         u8g2Ptr->drawUTF8(getX() + 1 + 27 * 1, getY() + 60 + i * 25, ":");
@@ -450,7 +451,7 @@ void TimeCtrl::inputHandler()
 
 PumpIndicator::PumpIndicator()
 : pumpSym((uint8_t *)cycle, 1300, 6)
-, currentSym((uint8_t *)u8g2_font_fub20_tn, PT_FONT)
+, currentSym((uint8_t *)FONT_DISP_MID, PT_FONT)
 {
     pumpSym.setPosition(14, 5);
     pumpSym.setBMPSize(100, 100);
@@ -473,9 +474,9 @@ void PumpIndicator::drawSpecific(U8G2 *u8g2Ptr)
 
     currentSym.draw(u8g2Ptr);
 
-    u8g2Ptr->setFont(u8g2_font_bitcasual_tr); // 11x11
-    u8g2Ptr->drawStr(getX() + 46, getY() + 73, "L  min");
-    u8g2Ptr->drawStr(getX() + 55, getY() + 73, "/");
+    u8g2Ptr->setFont(FONT_SMALL_ENG);
+    u8g2Ptr->drawStr(getX() + 46, getY() + 73, "L/min");
+    // u8g2Ptr->drawStr(getX() + 55, getY() + 73, "/");
 }
 
 void PumpIndicator::setPumpOnOff(bool isOn)
