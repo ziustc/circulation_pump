@@ -3,6 +3,7 @@
 #include "panel.h"
 #include "pattern.h"
 #include "symbols.h"
+#include "common.h"
 
 using namespace std;
 
@@ -191,9 +192,9 @@ WaterCtrl::WaterCtrl()
     // 三个输入字段：开水最短时长，最长时长，水泵运行时长
     vector<InputDigit> &inputFields = getInputFields();
 
-    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
     inputFields[0].setPosition(getX() + 43, getY() + 30);
     inputFields[1].setPosition(getX() + 65, getY() + 30);
@@ -222,13 +223,19 @@ WaterCtrl::WaterCtrl()
 
 void WaterCtrl::drawSpecific(U8G2 *u8g2Ptr)
 {
+    vector<InputDigit> inputFields = getInputFields();
+
     // panel外框
     u8g2Ptr->drawRFrame(getX(), getY(), 128, 70, 5);
 
     // 固定文字图案
-    u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
+    u8g2Ptr->setFont(FONT_CHN_16);
     u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "开水  -  秒");
     u8g2Ptr->drawUTF8(getX() + 25, getY() + 55, "水泵启动  分");
+
+    // inputFields[0].draw(u8g2Ptr, getX() + 43, getY() + 30);
+    // inputFields[1].draw(u8g2Ptr, getX() + 65, getY() + 30);
+    // inputFields[2].draw(u8g2Ptr, getX() + 91, getY() + 55);
 
     // 输入字段
     for (auto &inputFields : getInputFields())
@@ -273,7 +280,7 @@ TempCtrl::TempCtrl()
 {
     // 一个输入字段，水泵设定温度（该温度正负范围内启动）
     vector<InputDigit> &inputFields = getInputFields();
-    inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
     // 设定温度显示
     inputFields[0].setDigitCount(2);
@@ -293,7 +300,7 @@ void TempCtrl::drawSpecific(U8G2 *u8g2Ptr)
     u8g2Ptr->drawRFrame(getX(), getY(), 128, 45, 5);
 
     // 固定文字图案
-    u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
+    u8g2Ptr->setFont(FONT_CHN_16);
     u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "设定水温    度");
 
     // 输入字段
@@ -321,10 +328,10 @@ TimeCtrl::TimeCtrl()
     vector<InputDigit> &inputFields = getInputFields();
     for (int i = 0; i < 3; i++)
     {
-        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
-        inputFields.emplace_back(InputDigit((uint8_t *)u8g2_font_logisoso16_tn));
+        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
         inputFields[i * 4 + 0].setPosition(getX() + 7 + 27 * 0, getY() + 60 + i * 25);
         inputFields[i * 4 + 1].setPosition(getX() + 7 + 27 * 1, getY() + 60 + i * 25);
@@ -346,7 +353,7 @@ TimeCtrl::TimeCtrl()
     // 三个“+1天”标识
     for (int i = 0; i < 3; i++)
     {
-        dayPlusSign.emplace_back(Pattern((uint8_t *)u8g2_font_busdisplay11x5_tr, PT_FONT));
+        dayPlusSign.emplace_back(Pattern((uint8_t *)FONT_NARROW_SMALL, PT_FONT));
 
         dayPlusSign[i].setCode("+1");
         dayPlusSign[i].setPosition(getX() + 112, getY() + 55 + i * 25);
@@ -369,9 +376,9 @@ void TimeCtrl::drawSpecific(U8G2 *u8g2Ptr)
     u8g2Ptr->drawRFrame(getX(), getY(), 128, 130, 5);
 
     // 固定文字图案
-    u8g2Ptr->setFont(u8g2_font_wqy16_t_gb2312b);
+    u8g2Ptr->setFont(FONT_CHN_16);
     u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "水温保持时段：");
-    u8g2Ptr->setFont(u8g2_font_logisoso16_tn);
+    u8g2Ptr->setFont(FONT_INPUT_DIGIT);
     for (int i = 0; i < 3; i++)
     {
         u8g2Ptr->drawUTF8(getX() + 1 + 27 * 1, getY() + 60 + i * 25, ":");
@@ -439,12 +446,12 @@ void TimeCtrl::inputHandler()
 }
 
 /*************************************************************/
-/*                         其他面板                           */
+/*                         水泵指示器                          */
 /*************************************************************/
 
 PumpIndicator::PumpIndicator()
-: pumpSym((uint8_t *)cycle, 1300, 6)
-, currentSym((uint8_t *)u8g2_font_fub20_tn, PT_FONT)
+: pumpSym((uint8_t *)icon_cycle, 1300, 6)
+, currentSym((uint8_t *)FONT_DISP_MID, PT_FONT)
 {
     pumpSym.setPosition(14, 5);
     pumpSym.setBMPSize(100, 100);
@@ -467,7 +474,7 @@ void PumpIndicator::drawSpecific(U8G2 *u8g2Ptr)
 
     currentSym.draw(u8g2Ptr);
 
-    u8g2Ptr->setFont(u8g2_font_bitcasual_tr); // 11x11
+    u8g2Ptr->setFont(FONT_SMALL_ENG2);
     u8g2Ptr->drawStr(getX() + 46, getY() + 73, "L  min");
     u8g2Ptr->drawStr(getX() + 55, getY() + 73, "/");
 }
@@ -479,3 +486,112 @@ void PumpIndicator::setPumpOnOff(bool isOn)
 }
 
 void PumpIndicator::setWaterCurrent(float current) { waterCurrent = current; }
+
+/*************************************************************/
+/*                        温度指示器                           */
+/*************************************************************/
+
+TempIndicator::TempIndicator()
+: tempSym((uint8_t *)FONT_DISP_LARGE, PT_FONT)
+{
+    temperature = 25;
+}
+
+void TempIndicator::setTemperature(int temp) { temperature = temp; }
+
+void TempIndicator::drawSpecific(U8G2 *u8g2Ptr)
+{
+    char buf[5];
+
+    u8g2Ptr->drawXBMP(getX() + 15, getY() + 18, 20, 32, icon_temp);
+
+    snprintf(buf, sizeof(buf), "%d", temperature);
+    tempSym.setCode(buf);
+    tempSym.draw(u8g2Ptr, getX() + 44, getY() + 50);
+
+    u8g2Ptr->setFont(FONT_DISP_SMALL);
+    u8g2Ptr->drawStr(getX() + 97,
+                     getY() + 35,
+                     "\xb0"
+                     "C");
+}
+
+/*************************************************************/
+/*                        温度曲线                            */
+/*************************************************************/
+
+TempCurve::TempCurve()
+{
+    tempPoints.push_front(30);
+    tempPoints.push_front(28);
+    tempPoints.push_front(25);
+    tempPoints.push_front(35);
+    tempPoints.push_front(38);
+    tempPoints.push_front(35);
+    tempPoints.push_front(30);
+    tempPoints.push_front(28);
+    tempPoints.push_front(25);
+    tempPoints.push_front(25);
+    tempPoints.push_front(25);
+
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+}
+
+void TempCurve::addDataPoint(int temp, bool pumpOn)
+{
+    if (tempPoints.size() >= MAX_DATA_POINTS)
+    {
+        tempPoints.pop_back();
+        pumpOnPoints.pop_back();
+    }
+    tempPoints.push_front(temp);
+    pumpOnPoints.push_front(pumpOn);
+}
+
+void TempCurve::drawSpecific(U8G2 *u8g2Ptr)
+{
+    // temp坐标轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 50, getX() + 123, getY() + 50); // X轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 50, getX() + 18, getY() + 0);   // Y轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 45, getX() + 20, getY() + 45);  // 辅助线
+    u8g2Ptr->drawLine(getX() + 18, getY() + 5, getX() + 20, getY() + 5);    // 辅助线
+    u8g2Ptr->setFont(FONT_SMALL_ENG);
+    u8g2Ptr->drawStr(getX() + 0, getY() + 45 + 4, "20");
+    u8g2Ptr->drawStr(getX() + 0, getY() + 5 + 4, "40");
+
+    // pumpOn坐标轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 75, getX() + 123, getY() + 75); // X轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 75, getX() + 18, getY() + 58);  // Y轴
+    u8g2Ptr->setFont(FONT_SMALL_ENG);
+    u8g2Ptr->drawStr(getX() + 0, getY() + 74, "ON");
+
+    if (tempPoints.size() < 2) return;
+
+    // 曲线
+    for (int i = 0; i < tempPoints.size() - 1; i++)
+    {
+        // temp曲线
+        if (tempPoints[i] < 20) tempPoints[i] = 20;
+        if (tempPoints[i] > 40) tempPoints[i] = 40;
+        if (tempPoints[i + 1] < 20) tempPoints[i + 1] = 20;
+        if (tempPoints[i + 1] > 40) tempPoints[i + 1] = 40;
+
+        u8g2Ptr->drawLine(getX() + 120 - i * 2,
+                          getY() + 45 - (tempPoints[i] - 20) * 2,
+                          getX() + 120 - (i + 1) * 2,
+                          getY() + 45 - (tempPoints[i + 1] - 20) * 2);
+
+        // pumpOn曲线
+        if (pumpOnPoints[i]) u8g2Ptr->drawBox(getX() + 120 - i * 2, getY() + 60, 2, 15);
+    }
+}

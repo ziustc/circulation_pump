@@ -29,8 +29,9 @@ public:
     void         setDisplayMode(DisplayMode mode);
     DisplayMode  getDisplayMode();
     void         setFlashInterval(int interval);
-    virtual void draw(U8G2 *u8g2Ptr); // 虚函数，每次刷新LCD时调用，
-                                      // 在各派生类中预处理完成后，调用基类drawCore()实现写入u8g2
+    virtual void draw(U8G2 *u8g2Ptr);                 // 虚函数，每次刷新LCD时调用，
+                                                      // 在各派生类中预处理完成后，调用基类drawCore()实现写入u8g2
+    void draw(U8G2 *u8g2Ptr, uint16_t x, uint16_t y); // draw()的时候确定位置
 
 protected:
     void drawCore(U8G2 *u8g2Ptr); // 由draw()调用，将本Pattern（包括子类的各种类型）的图案输出到缓冲区
@@ -63,6 +64,8 @@ public:
     void increase();
     void decrease();
     void draw(U8G2 *u8g2Ptr) override; // 重写draw()，然后调用基类的drawCore，显示数字
+    using Pattern::draw; // C++中，基类若有多个同名函数（参数表不同），若派生类override了其中一个，其他同名函数
+                         // 也都被隐藏了。所以按语法，需要在派生类中使用using，重新把基类的这些同名函数拉出来
 
 private:
     int minValue; // 最小数字
@@ -82,6 +85,8 @@ public:
     void rollSymbol();                     // 向前滚动符号
     void rollSymbolBack();                 // 向后滚动符号
     void draw(U8G2 *u8g2Ptr) override;     // 重写draw()，然后调用基类的drawCore，显示图案
+    using Pattern::draw; // C++中，基类若有多个同名函数（参数表不同），若派生类override了其中一个，其他同名函数
+                         // 也都被隐藏了。所以按语法，需要在派生类中使用using，重新把基类的这些同名函数拉出来
 
 private:
     int  symbolCnt;       // 图案数量，即二维数组的第一维长度

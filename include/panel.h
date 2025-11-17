@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <deque>
 #include "U8g2lib.h"
 #include "pattern.h"
 
@@ -124,11 +125,39 @@ public:
     void setWaterCurrent(float current);
 
 private:
-    bool  pumpIsOn;
-    float waterCurrent;
+    bool        pumpIsOn;
+    float       waterCurrent;
     MultiSymbol pumpSym;
-    Pattern currentSym;
-    void  drawSpecific(U8G2 *u8g2Ptr) override;
+    Pattern     currentSym;
+    void        drawSpecific(U8G2 *u8g2Ptr) override;
+};
+
+class TempIndicator : public Panel
+{
+public:
+    TempIndicator();
+    void setTemperature(int temp);
+
+private:
+    int     temperature;
+    Pattern tempSym;
+    void    drawSpecific(U8G2 *u8g2Ptr) override;
+};
+
+/**
+ * @brief 128x75 温度曲线显示面板
+ */
+class TempCurve : public Panel
+{
+public:
+    static const int MAX_DATA_POINTS = 50;
+    TempCurve();
+    void addDataPoint(int temp, bool pumpOn);
+
+private:
+    deque<int>  tempPoints;
+    deque<bool> pumpOnPoints;
+    void        drawSpecific(U8G2 *u8g2Ptr) override;
 };
 
 #endif

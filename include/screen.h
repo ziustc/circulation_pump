@@ -42,10 +42,8 @@ private:
     TimeCtrl      timePanel;
     WaterCtrl     waterPanel;
     TempCtrl      tempPanel;
-    // FlowIndicator flowInfo;
-    // DurationIndicator durationInfo;
-    // CurTimeIndicator timeInfo;
-    // StatusIndicator statusInfo;
+    TempIndicator tempInd;
+    TempCurve     tempCur;
 
     vector<CtrlPanel *>  panels;
     vector<Panel *>      indicators;

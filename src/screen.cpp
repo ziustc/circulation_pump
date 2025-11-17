@@ -6,14 +6,16 @@
 #include "panel.h"
 #include "pattern.h"
 #include "symbols.h"
+#include "common.h"
 
 using namespace std;
 
 Screen::Screen()
 {
     u8g2.emplace_back(U8G2_R0, /* cs=*/17, /* dc=*/3, /* reset=*/8);
-    // u8g2.emplace_back(U8G2_R0, /* cs=*/17, /* dc=*/3, /* reset=*/8);
-    // u8g2.emplace_back(U8G2_R0, /* cs=*/17, /* dc=*/3, /* reset=*/8);
+    // u8g2.emplace_back(U8G2_R0, /* cs=*/38, /* dc=*/39, /* reset=*/40);
+    // u8g2.emplace_back(U8G2_R0, /* cs=*/18, /* dc=*/15, /* reset=*/16);
+    // u8g2.emplace_back(U8G2_R0, /* cs=*/41, /* dc=*/42, /* reset=*/2);
 
     for (int i = 0; i < 1; i++)
     {
@@ -25,6 +27,12 @@ Screen::Screen()
     // 泵循环标
     pumpInd.setPosition(0, 0);
     pumpInd.setPumpOnOff(true);
+
+    // 温度标识
+    tempInd.setPosition(0, 5);
+
+    // 温度曲线
+    tempCur.setPosition(0, 70);
 
     // 三个主控面板定位
     timePanel.setPosition(0, 0);
@@ -38,12 +46,7 @@ Screen::Screen()
 
     // 将所有其他Indicator放到vector中
     indicators.push_back(&pumpInd);
-
-    // 其他面板定位
-    // flowInfo.setPosition(5, 5);
-    // durationInfo.setPosition(700, 5);
-    // timeInfo.setPosition(700, 55);
-    // statusInfo.setPosition(700, 105);
+    indicators.push_back(&tempInd);
 
     // 初始状态
     curPanel = -1;
@@ -191,7 +194,7 @@ void Screen::draw()
     // 切换屏幕
     if (curMillis - shiftMillis >= 5000)
     {
-        shiftIndex  = (shiftIndex + 1) % 3;
+        shiftIndex  = (shiftIndex + 1) % 4;
         shiftMillis = curMillis;
     }
 
@@ -202,28 +205,6 @@ void Screen::draw()
         buttonMillis  = curMillis;
     }
 
-    // 刷新所有屏幕
-    u8g2[0].clearBuffer();
-
-    // 显示FPS
-    snprintf(buf, sizeof(buf), "fps = %.1f", fps);
-    u8g2[0].setFont(u8g2_font_bitcasual_tr); // 11x11
-    u8g2[0].drawStr(10, 150, buf);
-
-    if (shiftIndex == 0)
-    {
-        pumpInd.draw(&u8g2[0]);
-    }
-    else if (shiftIndex == 1)
-    {
-        timePanel.draw(&u8g2[0]);
-    }
-    else
-    {
-        waterPanel.draw(&u8g2[0]);
-        tempPanel.draw(&u8g2[0]);
-    }
-
     if (buttonPressed)
     {
         for (auto pnl : panels)
@@ -231,11 +212,62 @@ void Screen::draw()
         buttonPressed = false;
     }
 
-    // for (auto pnl : panels)
-    //     pnl->draw(&u8g2[0]);
+    // for (int i = 0; i < 4; i++)
+    //     u8g2[i].clearBuffer();
 
-    // for (auto ind : indicators)
-    //     ind->draw(&u8g2[0]);
+    // // 显示FPS
+    // snprintf(buf, sizeof(buf), "fps = %.1f", fps);
+    // u8g2[0].setFont(FONT_SMALL_ENG);
+    // u8g2[0].drawStr(10, 150, buf);
+
+    // // 分屏显示
+    // u8g2[0].clearBuffer();
+    // pumpInd.draw(&u8g2[0]);
+    // u8g2[0].sendBuffer();
+
+    // u8g2[1].clearBuffer();
+    // timePanel.draw(&u8g2[1]);
+    // u8g2[1].sendBuffer();
+
+    // u8g2[2].clearBuffer();
+    // waterPanel.draw(&u8g2[2]);
+    // tempPanel.draw(&u8g2[2]);
+    // u8g2[2].sendBuffer();
+
+    // u8g2[3].clearBuffer();
+    // tempInd.draw(&u8g2[3]);
+    // tempCur.draw(&u8g2[3]);
+    // u8g2[3].sendBuffer();
+
+    // for (int i = 0; i < 4; i++)
+    //     u8g2[i].sendBuffer();
+
+    // 单屏显示
+    u8g2[0].clearBuffer();
+
+    // // 显示FPS
+    snprintf(buf, sizeof(buf), "fps=%.1f", fps);
+    u8g2[0].setFont(FONT_SMALL_ENG);
+    u8g2[0].drawStr(1, 159, buf);
+
+    if (shiftIndex == 0)
+    {
+        pumpInd.draw(&u8g2[0]);
+    }
+    else if (shiftIndex == 1)
+    {
+        tempInd.draw(&u8g2[0]);
+        tempCur.draw(&u8g2[0]);
+    }
+    else if (shiftIndex == 2)
+    {
+        waterPanel.draw(&u8g2[0]);
+        tempPanel.draw(&u8g2[0]);
+    }
+    else // shiftIndex == 3
+    {
+        timePanel.draw(&u8g2[0]);
+    }
 
     u8g2[0].sendBuffer();
 }
