@@ -446,11 +446,11 @@ void TimeCtrl::inputHandler()
 }
 
 /*************************************************************/
-/*                         其他面板                           */
+/*                         水泵指示器                          */
 /*************************************************************/
 
 PumpIndicator::PumpIndicator()
-: pumpSym((uint8_t *)cycle, 1300, 6)
+: pumpSym((uint8_t *)icon_cycle, 1300, 6)
 , currentSym((uint8_t *)FONT_DISP_MID, PT_FONT)
 {
     pumpSym.setPosition(14, 5);
@@ -474,9 +474,9 @@ void PumpIndicator::drawSpecific(U8G2 *u8g2Ptr)
 
     currentSym.draw(u8g2Ptr);
 
-    u8g2Ptr->setFont(FONT_SMALL_ENG);
-    u8g2Ptr->drawStr(getX() + 46, getY() + 73, "L/min");
-    // u8g2Ptr->drawStr(getX() + 55, getY() + 73, "/");
+    u8g2Ptr->setFont(FONT_SMALL_ENG2);
+    u8g2Ptr->drawStr(getX() + 46, getY() + 73, "L  min");
+    u8g2Ptr->drawStr(getX() + 55, getY() + 73, "/");
 }
 
 void PumpIndicator::setPumpOnOff(bool isOn)
@@ -486,3 +486,112 @@ void PumpIndicator::setPumpOnOff(bool isOn)
 }
 
 void PumpIndicator::setWaterCurrent(float current) { waterCurrent = current; }
+
+/*************************************************************/
+/*                        温度指示器                           */
+/*************************************************************/
+
+TempIndicator::TempIndicator()
+: tempSym((uint8_t *)FONT_DISP_LARGE, PT_FONT)
+{
+    temperature = 25;
+}
+
+void TempIndicator::setTemperature(int temp) { temperature = temp; }
+
+void TempIndicator::drawSpecific(U8G2 *u8g2Ptr)
+{
+    char buf[5];
+
+    u8g2Ptr->drawXBMP(getX() + 15, getY() + 18, 20, 32, icon_temp);
+
+    snprintf(buf, sizeof(buf), "%d", temperature);
+    tempSym.setCode(buf);
+    tempSym.draw(u8g2Ptr, getX() + 44, getY() + 50);
+
+    u8g2Ptr->setFont(FONT_DISP_SMALL);
+    u8g2Ptr->drawStr(getX() + 97,
+                     getY() + 35,
+                     "\xb0"
+                     "C");
+}
+
+/*************************************************************/
+/*                        温度曲线                            */
+/*************************************************************/
+
+TempCurve::TempCurve()
+{
+    tempPoints.push_front(30);
+    tempPoints.push_front(28);
+    tempPoints.push_front(25);
+    tempPoints.push_front(35);
+    tempPoints.push_front(38);
+    tempPoints.push_front(35);
+    tempPoints.push_front(30);
+    tempPoints.push_front(28);
+    tempPoints.push_front(25);
+    tempPoints.push_front(25);
+    tempPoints.push_front(25);
+
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(true);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+    pumpOnPoints.push_front(false);
+}
+
+void TempCurve::addDataPoint(int temp, bool pumpOn)
+{
+    if (tempPoints.size() >= MAX_DATA_POINTS)
+    {
+        tempPoints.pop_back();
+        pumpOnPoints.pop_back();
+    }
+    tempPoints.push_front(temp);
+    pumpOnPoints.push_front(pumpOn);
+}
+
+void TempCurve::drawSpecific(U8G2 *u8g2Ptr)
+{
+    // temp坐标轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 50, getX() + 123, getY() + 50); // X轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 50, getX() + 18, getY() + 0);   // Y轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 45, getX() + 20, getY() + 45);  // 辅助线
+    u8g2Ptr->drawLine(getX() + 18, getY() + 5, getX() + 20, getY() + 5);    // 辅助线
+    u8g2Ptr->setFont(FONT_SMALL_ENG);
+    u8g2Ptr->drawStr(getX() + 0, getY() + 45 + 4, "20");
+    u8g2Ptr->drawStr(getX() + 0, getY() + 5 + 4, "40");
+
+    // pumpOn坐标轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 75, getX() + 123, getY() + 75); // X轴
+    u8g2Ptr->drawLine(getX() + 18, getY() + 75, getX() + 18, getY() + 58);  // Y轴
+    u8g2Ptr->setFont(FONT_SMALL_ENG);
+    u8g2Ptr->drawStr(getX() + 0, getY() + 74, "ON");
+
+    if (tempPoints.size() < 2) return;
+
+    // 曲线
+    for (int i = 0; i < tempPoints.size() - 1; i++)
+    {
+        // temp曲线
+        if (tempPoints[i] < 20) tempPoints[i] = 20;
+        if (tempPoints[i] > 40) tempPoints[i] = 40;
+        if (tempPoints[i + 1] < 20) tempPoints[i + 1] = 20;
+        if (tempPoints[i + 1] > 40) tempPoints[i + 1] = 40;
+
+        u8g2Ptr->drawLine(getX() + 120 - i * 2,
+                          getY() + 45 - (tempPoints[i] - 20) * 2,
+                          getX() + 120 - (i + 1) * 2,
+                          getY() + 45 - (tempPoints[i + 1] - 20) * 2);
+
+        // pumpOn曲线
+        if (pumpOnPoints[i]) u8g2Ptr->drawBox(getX() + 120 - i * 2, getY() + 60, 2, 15);
+    }
+}

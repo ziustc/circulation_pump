@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <deque>
 #include "U8g2lib.h"
 #include "pattern.h"
 
@@ -32,7 +33,7 @@ public:
     uint16_t     getY();
     void         setDisplayMode(DisplayMode mode);
     void         setFlashInterval(int interval);
-    void         draw(U8G2 *u8g2Ptr);       // 统一接口，处理完显示和闪烁后，调用虚函数drawCore()，由派生类自己实现
+    void         draw(U8G2 *u8g2Ptr); // 统一接口，处理完显示和闪烁后，调用虚函数drawCore()，由派生类自己实现
 
 protected:
     void registerPattern(Pattern *newPattern);
@@ -128,6 +129,34 @@ private:
     float       waterCurrent;
     MultiSymbol pumpSym;
     Pattern     currentSym;
+    void        drawSpecific(U8G2 *u8g2Ptr) override;
+};
+
+class TempIndicator : public Panel
+{
+public:
+    TempIndicator();
+    void setTemperature(int temp);
+
+private:
+    int     temperature;
+    Pattern tempSym;
+    void    drawSpecific(U8G2 *u8g2Ptr) override;
+};
+
+/**
+ * @brief 128x75 温度曲线显示面板
+ */
+class TempCurve : public Panel
+{
+public:
+    static const int MAX_DATA_POINTS = 50;
+    TempCurve();
+    void addDataPoint(int temp, bool pumpOn);
+
+private:
+    deque<int>  tempPoints;
+    deque<bool> pumpOnPoints;
     void        drawSpecific(U8G2 *u8g2Ptr) override;
 };
 
