@@ -3,6 +3,9 @@
 
 #include <functional>
 
+#define TP_MAX_ARR   32
+#define TP_THRESHOLD 1.05f
+
 using namespace std;
 
 class Button
@@ -10,9 +13,16 @@ class Button
 public:
     Button();
     void setCallbackClick(function<void()> cbClick);
-    void stateTick(bool isPinSet);
+    void setTouchPin(int pinNum);
+    int  getTouchPin();
+    void stateTick(int pinValue);
 
 private:
+    int              buttonPinNum;
+    int              pinValues[32] = {0};
+    int              pinSum        = 0;
+    int              tpIndex       = 0;
+    bool             tpCalibrated  = false;
     bool             lastStableState;
     bool             lastReading;
     unsigned long    lastChangeMillis;
@@ -21,6 +31,7 @@ private:
     function<void()> callbackClick;
     void             onSingleClick();
     void             onLongPress();
+    bool             readTP(int pinValue); // 根据TouchPin的数值，识别按键按下状态
 };
 
 #endif
