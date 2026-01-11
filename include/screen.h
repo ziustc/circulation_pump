@@ -27,6 +27,7 @@ public:
     void onOK();
     void onUp();
     void onDown();
+    void onStart();
     void draw();
     void updateTempC(int temp);
     void updateVolume(int volume);

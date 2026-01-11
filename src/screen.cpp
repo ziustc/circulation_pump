@@ -12,12 +12,13 @@ using namespace std;
 
 Screen::Screen()
 {
-    u8g2.emplace_back(U8G2_R0, /* cs=*/17, /* dc=*/3, /* reset=*/8);
-    // u8g2.emplace_back(U8G2_R0, /* cs=*/38, /* dc=*/39, /* reset=*/40);
-    // u8g2.emplace_back(U8G2_R0, /* cs=*/18, /* dc=*/15, /* reset=*/16);
-    // u8g2.emplace_back(U8G2_R0, /* cs=*/41, /* dc=*/42, /* reset=*/2);
+    Serial.println("Screen initializing...");
+    u8g2.emplace_back(U8G2_R0, /* cs=*/42, /* dc=*/13, /* reset=*/41);
+    u8g2.emplace_back(U8G2_R0, /* cs=*/40, /* dc=*/13, /* reset=*/39);
+    u8g2.emplace_back(U8G2_R0, /* cs=*/9, /* dc=*/13, /* reset=*/10);
+    u8g2.emplace_back(U8G2_R0, /* cs=*/14, /* dc=*/13, /* reset=*/21);
 
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < 4; i++)
     {
         u8g2[i].begin();
         u8g2[i].enableUTF8Print();
@@ -111,17 +112,27 @@ void Screen::onUp()
 
 void Screen::onDown()
 {
-    // 如果当前没有选中任何面板，点UP无效
+    // 如果当前没有选中任何面板，点DOWN无效
     if (curPanel == -1) return;
 
-    // 如果当前面板只是被选中，但未激活（不在设置状态），点UP无效
+    // 如果当前面板只是被选中，但未激活（不在设置状态），点DOWN无效
     if (!(panels[curPanel]->getActive())) return;
 
     // 如果当前面板激活（在设置状态）
     panels[curPanel]->inputDown();
 }
 
-// void Screen::updateTempC(int temp) { tempPanel.setCurTemp(temp); }
+void Screen::onStart()
+{
+    // 任何状态，应可以立即启动循环泵
+}
+
+void Screen::updateTempC(int temp) 
+{ 
+    tempPanel.setData(temp); 
+    tempInd.setTemperature(temp);
+    
+}
 
 // void Screen::updateVolume(int volume) { flowInfo.setData(volume); }
 
@@ -212,62 +223,61 @@ void Screen::draw()
         buttonPressed = false;
     }
 
-    // for (int i = 0; i < 4; i++)
-    //     u8g2[i].clearBuffer();
+    // ============================================================//
+    //                           多屏显示方案                        //
+    // ============================================================//
 
-    // // 显示FPS
-    // snprintf(buf, sizeof(buf), "fps = %.1f", fps);
-    // u8g2[0].setFont(FONT_SMALL_ENG);
-    // u8g2[0].drawStr(10, 150, buf);
-
-    // // 分屏显示
-    // u8g2[0].clearBuffer();
-    // pumpInd.draw(&u8g2[0]);
-    // u8g2[0].sendBuffer();
-
-    // u8g2[1].clearBuffer();
-    // timePanel.draw(&u8g2[1]);
-    // u8g2[1].sendBuffer();
-
-    // u8g2[2].clearBuffer();
-    // waterPanel.draw(&u8g2[2]);
-    // tempPanel.draw(&u8g2[2]);
-    // u8g2[2].sendBuffer();
-
-    // u8g2[3].clearBuffer();
-    // tempInd.draw(&u8g2[3]);
-    // tempCur.draw(&u8g2[3]);
-    // u8g2[3].sendBuffer();
-
-    // for (int i = 0; i < 4; i++)
-    //     u8g2[i].sendBuffer();
-
-    // 单屏显示
+    // 分屏显示
     u8g2[0].clearBuffer();
-
-    // // 显示FPS
-    snprintf(buf, sizeof(buf), "fps=%.1f", fps);
+    pumpInd.draw(&u8g2[0]);
+    // 显示FPS
+    snprintf(buf, sizeof(buf), "fps = %.1f", fps);
     u8g2[0].setFont(FONT_SMALL_ENG);
     u8g2[0].drawStr(1, 159, buf);
-
-    if (shiftIndex == 0)
-    {
-        pumpInd.draw(&u8g2[0]);
-    }
-    else if (shiftIndex == 1)
-    {
-        tempInd.draw(&u8g2[0]);
-        tempCur.draw(&u8g2[0]);
-    }
-    else if (shiftIndex == 2)
-    {
-        waterPanel.draw(&u8g2[0]);
-        tempPanel.draw(&u8g2[0]);
-    }
-    else // shiftIndex == 3
-    {
-        timePanel.draw(&u8g2[0]);
-    }
-
     u8g2[0].sendBuffer();
+
+    u8g2[1].clearBuffer();
+    tempInd.draw(&u8g2[1]);
+    tempCur.draw(&u8g2[1]);
+    u8g2[1].sendBuffer();
+
+    u8g2[2].clearBuffer();
+    waterPanel.draw(&u8g2[2]);
+    tempPanel.draw(&u8g2[2]);
+    u8g2[2].sendBuffer();
+
+    u8g2[3].clearBuffer();
+    timePanel.draw(&u8g2[3]);
+    u8g2[3].sendBuffer();
+
+    // ============================================================//
+    //                           单屏轮流显示                        //
+    // ============================================================//
+    // u8g2[0].clearBuffer();
+
+    // // // 显示FPS
+    // snprintf(buf, sizeof(buf), "fps=%.1f", fps);
+    // u8g2[0].setFont(FONT_SMALL_ENG);
+    // u8g2[0].drawStr(1, 159, buf);
+
+    // if (shiftIndex == 0)
+    // {
+    //     pumpInd.draw(&u8g2[0]);
+    // }
+    // else if (shiftIndex == 1)
+    // {
+    //     tempInd.draw(&u8g2[0]);
+    //     tempCur.draw(&u8g2[0]);
+    // }
+    // else if (shiftIndex == 2)
+    // {
+    //     waterPanel.draw(&u8g2[0]);
+    //     tempPanel.draw(&u8g2[0]);
+    // }
+    // else // shiftIndex == 3
+    // {
+    //     timePanel.draw(&u8g2[0]);
+    // }
+
+    // u8g2[0].sendBuffer();
 }

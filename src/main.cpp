@@ -9,6 +9,12 @@
 #include "pattern.h"
 #include "button.h"
 
+#define TOUCH_UP    4
+#define TOUCH_DOWN  5
+#define TOUCH_SHIFT 6
+#define TOUCH_OK    7
+#define TOUCH_START 8
+
 using namespace std;
 
 OTA  ota;
@@ -24,12 +30,15 @@ extern "C" int _write(int file, char *ptr, int len)
     return len;
 }
 
-Screen scr;
-Button btnUp;
-Button btnDown;
-Button btnOK;
-Button btnShift;
-Button btnStart;
+long last_millis = 0;
+
+Screen  scr;
+Button  btnUp;
+Button  btnDown;
+Button  btnOK;
+Button  btnShift;
+Button  btnStart;
+Button *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnStart};
 
 void setup(void)
 {
@@ -55,21 +64,36 @@ void setup(void)
 
     // 面板初始化
     btnUp.setCallbackClick([]() { scr.onUp(); });
+    btnUp.setTouchPin(TOUCH_UP);
+
     btnDown.setCallbackClick([]() { scr.onDown(); });
+    btnDown.setTouchPin(TOUCH_DOWN);
+
     btnOK.setCallbackClick([]() { scr.onOK(); });
+    btnOK.setTouchPin(TOUCH_OK);
+
     btnShift.setCallbackClick([]() { scr.onShift(); });
+    btnShift.setTouchPin(TOUCH_SHIFT);
+
+    btnStart.setCallbackClick([]() { scr.onStart(); });
+    btnStart.setTouchPin(TOUCH_START);
 }
 
 void loop(void)
 {
-    if (millis() - last_millis >= 1000)
-    {
-        last_millis = millis();
-        Serial.println("loop");
-    }
+    // 整体循环频率约60Hz
 
-    // 必须保持频繁调用
+    // OTA监控需要频繁调用
     ota.handle();
 
-    scr.draw();
+    for (int i = 0; i < 5; i++)
+        buttons[i]->stateTick(touchRead(buttons[i]->getTouchPin()));
+
+    scr.draw(); // 4个屏幕刷新共约16ms
+
+    if (millis() - last_millis >= 1000)
+    {
+        Serial.println("o");
+        last_millis = millis();
+    }
 }
