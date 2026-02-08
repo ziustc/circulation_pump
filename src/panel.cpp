@@ -13,6 +13,7 @@ using namespace std;
 
 Panel::Panel()
 {
+    u8g2          = nullptr;
     posX          = 0;
     posY          = 0;
     dispMode      = DM_SHOW;
@@ -20,16 +21,23 @@ Panel::Panel()
     flashInterval = 500;
 }
 
-void Panel::setPosition(uint16_t left, uint16_t top)
+void Panel::setPosition(U8G2 *u8g2Ptr, uint16_t left, uint16_t top)
 {
+    u8g2 = u8g2Ptr;
+
     // 先将Panel下所有的Pattern同步重定义位置
-    for (Pattern *patternPtr : allPatterns)
-        patternPtr->movePosition(left - posX, top - posY);
+    for (Pattern *eachPattern : allPatterns)
+    {
+        eachPattern->setU8G2(u8g2Ptr);                      // 仅设置旗下所有Pattern的u8g2
+        eachPattern->movePosition(left - posX, top - posY); // 设置Pattern的位置
+    }
 
     // 再重设本Panel的位置
     posX = left;
     posY = top;
 }
+
+U8G2 *Panel::getU8G2() { return u8g2; }
 
 uint16_t Panel::getX() { return posX; }
 
@@ -55,7 +63,7 @@ void Panel::setDisplayMode(DisplayMode mode)
 
 void Panel::setFlashInterval(int interval) { flashInterval = interval; }
 
-void Panel::draw(U8G2 *u8g2Ptr)
+void Panel::draw()
 {
     long currentTime = millis();
     if (dispMode == DM_HIDE)
@@ -78,7 +86,13 @@ void Panel::draw(U8G2 *u8g2Ptr)
         }
     }
 
-    if (isVisibleNow) drawSpecific(u8g2Ptr);
+    if (isVisibleNow) drawSpecific();
+}
+
+void Panel::draw(U8G2 *u8g2Ptr, uint16_t x, uint16_t y)
+{
+    setPosition(u8g2Ptr, x, y);
+    draw();
 }
 
 void Panel::registerPattern(Pattern *newPattern) { allPatterns.push_back(newPattern); }
@@ -192,13 +206,17 @@ WaterCtrl::WaterCtrl()
     // 三个输入字段：开水最短时长，最长时长，水泵运行时长
     vector<InputDigit> &inputFields = getInputFields();
 
+    // 初始化自身位置
+    setPosition(nullptr, 0, 0);
+
+    // 初始化panel内部pattern
     inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
     inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
     inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
-    inputFields[0].setPosition(getX() + 43, getY() + 30);
-    inputFields[1].setPosition(getX() + 65, getY() + 30);
-    inputFields[2].setPosition(getX() + 91, getY() + 55);
+    inputFields[0].setPosition(nullptr, 43, 30); // 构造函数时暂时没有u8g2用nullptr，所有坐标相对(0, 0)初始化
+    inputFields[1].setPosition(nullptr, 65, 30);
+    inputFields[2].setPosition(nullptr, 91, 55);
 
     inputFields[0].setDigitCount(1);
     inputFields[1].setDigitCount(1);
@@ -221,17 +239,18 @@ WaterCtrl::WaterCtrl()
     switchInput();
 }
 
-void WaterCtrl::drawSpecific(U8G2 *u8g2Ptr)
+void WaterCtrl::drawSpecific()
 {
     vector<InputDigit> inputFields = getInputFields();
+    U8G2              *u8g2        = getU8G2();
 
     // panel外框
-    u8g2Ptr->drawRFrame(getX(), getY(), 128, 70, 5);
+    u8g2->drawRFrame(getX(), getY(), 128, 70, 5);
 
     // 固定文字图案
-    u8g2Ptr->setFont(FONT_CHN_16);
-    u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "开水  -  秒");
-    u8g2Ptr->drawUTF8(getX() + 25, getY() + 55, "水泵启动  分");
+    u8g2->setFont(FONT_CHN_16);
+    u8g2->drawUTF8(getX() + 10, getY() + 30, "开水  -  秒");
+    u8g2->drawUTF8(getX() + 25, getY() + 55, "水泵启动  分");
 
     // inputFields[0].draw(u8g2Ptr, getX() + 43, getY() + 30);
     // inputFields[1].draw(u8g2Ptr, getX() + 65, getY() + 30);
@@ -239,7 +258,7 @@ void WaterCtrl::drawSpecific(U8G2 *u8g2Ptr)
 
     // 输入字段
     for (auto &inputFields : getInputFields())
-        inputFields.draw(u8g2Ptr);
+        inputFields.draw();
 }
 
 WaterSettings WaterCtrl::getSettings()
@@ -280,11 +299,16 @@ TempCtrl::TempCtrl()
 {
     // 一个输入字段，水泵设定温度（该温度正负范围内启动）
     vector<InputDigit> &inputFields = getInputFields();
+
+    // 初始化自身位置
+    setPosition(nullptr, 0, 0);
+
+    // 初始化panel内部pattern
     inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
     // 设定温度显示
     inputFields[0].setDigitCount(2);
-    inputFields[0].setPosition(80, 30);
+    inputFields[0].setPosition(nullptr, 80, 30); // 构造函数时暂时没有u8g2用nullptr，所有坐标相对(0, 0)初始化
     inputFields[0].setLimit(25, 45);
     inputFields[0].setValue(35);
 
@@ -294,18 +318,20 @@ TempCtrl::TempCtrl()
     switchInput();
 }
 
-void TempCtrl::drawSpecific(U8G2 *u8g2Ptr)
+void TempCtrl::drawSpecific()
 {
+    U8G2 *u8g2 = getU8G2();
+
     // 外框
-    u8g2Ptr->drawRFrame(getX(), getY(), 128, 45, 5);
+    u8g2->drawRFrame(getX(), getY(), 128, 45, 5);
 
     // 固定文字图案
-    u8g2Ptr->setFont(FONT_CHN_16);
-    u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "设定水温    度");
+    u8g2->setFont(FONT_CHN_16);
+    u8g2->drawUTF8(getX() + 10, getY() + 30, "设定水温    度");
 
     // 输入字段
     for (auto &inputFields : getInputFields())
-        inputFields.draw(u8g2Ptr);
+        inputFields.draw();
 }
 
 int TempCtrl::getSettings() { return getInputFields()[0].getValue(); }
@@ -326,6 +352,11 @@ TimeCtrl::TimeCtrl()
 {
     // 三组循环泵有效时段
     vector<InputDigit> &inputFields = getInputFields();
+
+    // 初始化自身位置
+    setPosition(nullptr, 0, 0);
+
+    // 初始化panel内部pattern
     for (int i = 0; i < 3; i++)
     {
         inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
@@ -333,10 +364,10 @@ TimeCtrl::TimeCtrl()
         inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
         inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
-        inputFields[i * 4 + 0].setPosition(getX() + 7 + 27 * 0, getY() + 60 + i * 25);
-        inputFields[i * 4 + 1].setPosition(getX() + 7 + 27 * 1, getY() + 60 + i * 25);
-        inputFields[i * 4 + 2].setPosition(getX() + 7 + 27 * 2, getY() + 60 + i * 25);
-        inputFields[i * 4 + 3].setPosition(getX() + 7 + 27 * 3, getY() + 60 + i * 25);
+        inputFields[i * 4 + 0].setPosition(nullptr, 7 + 27 * 0, 60 + i * 25);
+        inputFields[i * 4 + 1].setPosition(nullptr, 7 + 27 * 1, 60 + i * 25);
+        inputFields[i * 4 + 2].setPosition(nullptr, 7 + 27 * 2, 60 + i * 25);
+        inputFields[i * 4 + 3].setPosition(nullptr, 7 + 27 * 3, 60 + i * 25);
 
         inputFields[i * 4 + 0].setLimit(0, 23);
         inputFields[i * 4 + 1].setLimit(0, 59);
@@ -356,7 +387,7 @@ TimeCtrl::TimeCtrl()
         dayPlusSign.emplace_back(Pattern((uint8_t *)FONT_NARROW_SMALL, PT_FONT));
 
         dayPlusSign[i].setCode("+1");
-        dayPlusSign[i].setPosition(getX() + 112, getY() + 55 + i * 25);
+        dayPlusSign[i].setPosition(nullptr, 112, 55 + i * 25);
         // dayPlusSign[i].setDisplayMode(DM_HIDE);
     }
 
@@ -370,29 +401,31 @@ TimeCtrl::TimeCtrl()
     switchInput();
 }
 
-void TimeCtrl::drawSpecific(U8G2 *u8g2Ptr)
+void TimeCtrl::drawSpecific()
 {
+    U8G2 *u8g2 = getU8G2();
+
     // 外框
-    u8g2Ptr->drawRFrame(getX(), getY(), 128, 130, 5);
+    u8g2->drawRFrame(getX(), getY(), 128, 130, 5);
 
     // 固定文字图案
-    u8g2Ptr->setFont(FONT_CHN_16);
-    u8g2Ptr->drawUTF8(getX() + 10, getY() + 30, "水温保持时段：");
-    u8g2Ptr->setFont(FONT_INPUT_DIGIT);
+    u8g2->setFont(FONT_CHN_16);
+    u8g2->drawUTF8(getX() + 10, getY() + 30, "水温保持时段：");
+    u8g2->setFont(FONT_INPUT_DIGIT);
     for (int i = 0; i < 3; i++)
     {
-        u8g2Ptr->drawUTF8(getX() + 1 + 27 * 1, getY() + 60 + i * 25, ":");
-        u8g2Ptr->drawUTF8(getX() - 1 + 27 * 2, getY() + 60 + i * 25, "-");
-        u8g2Ptr->drawUTF8(getX() + 1 + 27 * 3, getY() + 60 + i * 25, ":");
+        u8g2->drawUTF8(getX() + 1 + 27 * 1, getY() + 60 + i * 25, ":");
+        u8g2->drawUTF8(getX() - 1 + 27 * 2, getY() + 60 + i * 25, "-");
+        u8g2->drawUTF8(getX() + 1 + 27 * 3, getY() + 60 + i * 25, ":");
     }
 
     // 输入字段
     for (auto &inputFields : getInputFields())
-        inputFields.draw(u8g2Ptr);
+        inputFields.draw();
 
     // "+1"标识
     for (int i = 0; i < 3; i++)
-        dayPlusSign[i].draw(u8g2Ptr);
+        dayPlusSign[i].draw();
 }
 
 TimeSettings TimeCtrl::getSettings()
@@ -451,41 +484,102 @@ void TimeCtrl::inputHandler()
 
 PumpIndicator::PumpIndicator()
 : pumpSym((uint8_t *)icon_cycle, 1300, 6)
-, currentSym((uint8_t *)FONT_DISP_MID, PT_FONT)
+, durationSym((uint8_t *)FONT_DISP_SMALL2, PT_FONT)
 {
-    pumpSym.setPosition(14, 5);
+    // 无需初始化自身位置，因为C++本身会先调用基类构造函数，在Panel的构造函数中已经初始化了
+    // setPosition(nullptr, 0, 0);
+
+    // 初始化panel内部pattern
+    pumpSym.setPosition(nullptr, 0, 0); // 这里是pattern相对panel左上点的相对坐标
     pumpSym.setBMPSize(100, 100);
     pumpSym.setRollingInterval(100);
 
-    currentSym.setPosition(44, 58);
+    durationSym.setPosition(nullptr, 26, 58); // 这里是pattern相对panel左上点的相对坐标
 
     setPumpOnOff(true);
-    setWaterCurrent(3.5);
+
+    // 注册所有Pattern对象
+    registerPattern(&pumpSym);
+    registerPattern(&durationSym);
 }
 
-void PumpIndicator::drawSpecific(U8G2 *u8g2Ptr)
+void PumpIndicator::drawSpecific()
 {
-    pumpSym.draw(u8g2Ptr);
-
     char buf[5];
-    if (waterCurrent > 9.9) waterCurrent = 9.9;
-    snprintf(buf, sizeof(buf), "%.1f", waterCurrent);
-    currentSym.setCode(buf);
 
-    currentSym.draw(u8g2Ptr);
+    // 计算循环泵开启时长
+    calcDuration();
+    snprintf(buf, sizeof(buf), "%d:%02d", duration.minute, duration.second);
+    durationSym.setCode(buf);
 
-    u8g2Ptr->setFont(FONT_SMALL_ENG2);
-    u8g2Ptr->drawStr(getX() + 46, getY() + 73, "L  min");
-    u8g2Ptr->drawStr(getX() + 55, getY() + 73, "/");
+    pumpSym.draw();
+    durationSym.draw();
+}
+
+void PumpIndicator::calcDuration()
+{
+    int dur;
+
+    if (pumpIsOn)
+    {
+        dur = (millis() - startMillis) / 1000;
+        if (dur < 10 * 60)
+        {
+            duration.minute = dur / 60;
+            duration.second = dur % 60;
+        }
+        else
+        {
+            duration.minute = 9;
+            duration.second = 59;
+        }
+    }
+    else
+    {
+        duration.hour   = 0;
+        duration.minute = 0;
+        duration.second = 0;
+    }
 }
 
 void PumpIndicator::setPumpOnOff(bool isOn)
 {
     pumpIsOn = isOn;
     pumpSym.setRollOnOff(isOn);
+
+    if (isOn)
+    {
+        durationSym.setDisplayMode(DM_SHOW);
+        startMillis = millis();
+    }
+    else
+    {
+        durationSym.setDisplayMode(DM_HIDE);
+        startMillis = 0;
+    }
 }
 
-void PumpIndicator::setWaterCurrent(float current) { waterCurrent = current; }
+/*************************************************************/
+/*                        流量指示器                           */
+/*************************************************************/
+FlowIndicator::FlowIndicator() { waterFlow = 4.7; }
+
+void FlowIndicator::drawSpecific()
+{
+    U8G2 *u8g2 = getU8G2();
+    char  buf[20];
+
+    snprintf(buf, sizeof(buf), "%1.1f", waterFlow);
+    u8g2->setFont(FONT_CHN_14);
+    u8g2->drawUTF8(getX(), getY() + 16, "流量");
+    u8g2->setFont(FONT_DISP_SMALL2);
+    u8g2->drawStr(getX() + 31, getY() + 18, buf);
+    u8g2->setFont(FONT_SMALL_ENG2);
+    u8g2->drawStr(getX() + 72, getY() + 9, "L /");
+    u8g2->drawStr(getX() + 72, getY() + 18, "min");
+}
+
+void FlowIndicator::setFlow(float flow) { waterFlow = flow; }
 
 /*************************************************************/
 /*                        温度指示器                           */
@@ -495,25 +589,27 @@ TempIndicator::TempIndicator()
 : tempSym((uint8_t *)FONT_DISP_LARGE, PT_FONT)
 {
     temperature = 25;
+    tempSym.setPosition(nullptr, 44, 50);
+    registerPattern(&tempSym);
 }
 
 void TempIndicator::setTemperature(int temp) { temperature = temp; }
 
-void TempIndicator::drawSpecific(U8G2 *u8g2Ptr)
+void TempIndicator::drawSpecific()
 {
-    char buf[5];
+    U8G2 *u8g2 = getU8G2();
+    char  buf[5];
 
-    u8g2Ptr->drawXBMP(getX() + 15, getY() + 18, 20, 32, icon_temp);
+    u8g2->drawXBMP(getX() + 15, getY() + 18, 20, 32, icon_temp);
+    u8g2->setFont(FONT_DISP_SMALL);
+    u8g2->drawStr(getX() + 97,
+                  getY() + 35,
+                  "\xb0"
+                  "C");
 
     snprintf(buf, sizeof(buf), "%d", temperature);
     tempSym.setCode(buf);
-    tempSym.draw(u8g2Ptr, getX() + 44, getY() + 50);
-
-    u8g2Ptr->setFont(FONT_DISP_SMALL);
-    u8g2Ptr->drawStr(getX() + 97,
-                     getY() + 35,
-                     "\xb0"
-                     "C");
+    tempSym.draw();
 }
 
 /*************************************************************/
@@ -522,6 +618,8 @@ void TempIndicator::drawSpecific(U8G2 *u8g2Ptr)
 
 TempCurve::TempCurve()
 {
+    setPosition(nullptr, 0, 0);
+
     tempPoints.push_front(30);
     tempPoints.push_front(28);
     tempPoints.push_front(25);
@@ -558,22 +656,24 @@ void TempCurve::addDataPoint(int temp, bool pumpOn)
     pumpOnPoints.push_front(pumpOn);
 }
 
-void TempCurve::drawSpecific(U8G2 *u8g2Ptr)
+void TempCurve::drawSpecific()
 {
+    U8G2 *u8g2 = getU8G2();
+
     // temp坐标轴
-    u8g2Ptr->drawLine(getX() + 18, getY() + 50, getX() + 123, getY() + 50); // X轴
-    u8g2Ptr->drawLine(getX() + 18, getY() + 50, getX() + 18, getY() + 0);   // Y轴
-    u8g2Ptr->drawLine(getX() + 18, getY() + 45, getX() + 20, getY() + 45);  // 辅助线
-    u8g2Ptr->drawLine(getX() + 18, getY() + 5, getX() + 20, getY() + 5);    // 辅助线
-    u8g2Ptr->setFont(FONT_SMALL_ENG);
-    u8g2Ptr->drawStr(getX() + 0, getY() + 45 + 4, "20");
-    u8g2Ptr->drawStr(getX() + 0, getY() + 5 + 4, "40");
+    u8g2->drawLine(getX() + 18, getY() + 50, getX() + 123, getY() + 50); // X轴
+    u8g2->drawLine(getX() + 18, getY() + 50, getX() + 18, getY() + 0);   // Y轴
+    u8g2->drawLine(getX() + 18, getY() + 45, getX() + 20, getY() + 45);  // 辅助线
+    u8g2->drawLine(getX() + 18, getY() + 5, getX() + 20, getY() + 5);    // 辅助线
+    u8g2->setFont(FONT_SMALL_ENG);
+    u8g2->drawStr(getX() + 0, getY() + 45 + 4, "20");
+    u8g2->drawStr(getX() + 0, getY() + 5 + 4, "40");
 
     // pumpOn坐标轴
-    u8g2Ptr->drawLine(getX() + 18, getY() + 75, getX() + 123, getY() + 75); // X轴
-    u8g2Ptr->drawLine(getX() + 18, getY() + 75, getX() + 18, getY() + 58);  // Y轴
-    u8g2Ptr->setFont(FONT_SMALL_ENG);
-    u8g2Ptr->drawStr(getX() + 0, getY() + 74, "ON");
+    u8g2->drawLine(getX() + 18, getY() + 75, getX() + 123, getY() + 75); // X轴
+    u8g2->drawLine(getX() + 18, getY() + 75, getX() + 18, getY() + 58);  // Y轴
+    u8g2->setFont(FONT_SMALL_ENG);
+    u8g2->drawStr(getX() + 0, getY() + 74, "ON");
 
     if (tempPoints.size() < 2) return;
 
@@ -586,12 +686,128 @@ void TempCurve::drawSpecific(U8G2 *u8g2Ptr)
         if (tempPoints[i + 1] < 20) tempPoints[i + 1] = 20;
         if (tempPoints[i + 1] > 40) tempPoints[i + 1] = 40;
 
-        u8g2Ptr->drawLine(getX() + 120 - i * 2,
-                          getY() + 45 - (tempPoints[i] - 20) * 2,
-                          getX() + 120 - (i + 1) * 2,
-                          getY() + 45 - (tempPoints[i + 1] - 20) * 2);
+        u8g2->drawLine(getX() + 120 - i * 2,
+                       getY() + 45 - (tempPoints[i] - 20) * 2,
+                       getX() + 120 - (i + 1) * 2,
+                       getY() + 45 - (tempPoints[i + 1] - 20) * 2);
 
         // pumpOn曲线
-        if (pumpOnPoints[i]) u8g2Ptr->drawBox(getX() + 120 - i * 2, getY() + 60, 2, 15);
+        if (pumpOnPoints[i]) u8g2->drawBox(getX() + 120 - i * 2, getY() + 60, 2, 15);
     }
 }
+
+/*************************************************************/
+/*                      信号强度指示器                         */
+/*************************************************************/
+
+SignalIndicator::SignalIndicator()
+{
+    setPosition(nullptr, 0, 0);
+    signalLevel = 1;
+}
+
+void SignalIndicator::setStrength(int strength)
+{
+    if (strength > -50)
+        signalLevel = 5;
+    else if (strength > -60)
+        signalLevel = 4;
+    else if (strength > -70)
+        signalLevel = 3;
+    else if (strength > -80)
+        signalLevel = 2;
+    else
+        signalLevel = 1;
+}
+
+void SignalIndicator::drawSpecific()
+{
+    U8G2 *u8g2 = getU8G2();
+    u8g2->drawXBMP(getX(), getY(), 23, 11, icon_signal[signalLevel - 1]);
+}
+
+/*************************************************************/
+/*                      真实时间指示器                         */
+/*************************************************************/
+
+RealtimeIndicator::RealtimeIndicator()
+{
+    setPosition(nullptr, 0, 0);
+    realTime = TimeStruct{0, 0, 0};
+}
+
+void RealtimeIndicator::setRealTime(TimeStruct time)
+{
+    realTime    = time;
+    lastMillis  = millis();
+    lastSetTime = time;
+}
+
+void RealtimeIndicator::timeTick()
+{
+    unsigned long now = millis();
+    int           addSec;
+    int           addMin;
+    int           addHour;
+
+    addSec = (now - lastMillis) / 1000;
+
+    realTime.second += addSec;
+
+    realTime.minute += realTime.second / 60;
+    realTime.second = realTime.second % 60;
+
+    realTime.hour += realTime.minute / 60;
+    realTime.minute = realTime.minute % 60;
+
+    realTime.hour = realTime.hour % 60;
+}
+
+void RealtimeIndicator::drawSpecific()
+{
+    U8G2 *u8g2   = getU8G2();
+    char  buf[6] = {0};
+
+    snprintf(buf, sizeof(buf), "%02d:%02d", realTime.hour, realTime.minute);
+
+    u8g2->setFont(FONT_MID_ENG);
+    u8g2->drawUTF8(getX(), getY() + 11, buf);
+}
+
+/*************************************************************/
+/*                         FPS指示器                          */
+/*************************************************************/
+
+FPSIndicator::FPSIndicator()
+{
+    setPosition(nullptr, 0, 0);
+    lastMillis = 0;
+    fps        = 0;
+}
+
+void FPSIndicator::drawSpecific()
+{
+    U8G2 *u8g2 = getU8G2();
+    char  buf[20];
+
+    refreshTick();
+
+    snprintf(buf, sizeof(buf), "fps=%.1f", fps);
+    u8g2->setFont(FONT_MID_ENG);
+    u8g2->drawStr(getX(), getY(), buf);
+}
+
+void FPSIndicator::refreshTick()
+{
+    unsigned long curMillis = millis();
+
+    fpsCount++;
+    if (curMillis - lastMillis >= 500)
+    {
+        fps        = (float)fpsCount * 1000 / (curMillis - lastMillis);
+        lastMillis = curMillis;
+        fpsCount   = 0;
+    }
+}
+
+float FPSIndicator::getFps() { return fps; }

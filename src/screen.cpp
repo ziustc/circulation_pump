@@ -12,45 +12,61 @@ using namespace std;
 
 Screen::Screen()
 {
-    Serial.println("Screen initializing...");
-    u8g2.emplace_back(U8G2_R0, /* cs=*/42, /* dc=*/13, /* reset=*/41);
-    u8g2.emplace_back(U8G2_R0, /* cs=*/40, /* dc=*/13, /* reset=*/39);
-    u8g2.emplace_back(U8G2_R0, /* cs=*/9, /* dc=*/13, /* reset=*/10);
-    u8g2.emplace_back(U8G2_R0, /* cs=*/14, /* dc=*/13, /* reset=*/21);
+    // 将三个主要的输入面板放到vector中，以便快速循环切换焦点，注意三个面板的顺序
+    ctrlPanels.push_back(&timePanel);
+    ctrlPanels.push_back(&waterPanel);
+    ctrlPanels.push_back(&tempPanel);
+}
 
+void Screen::init()
+{
+    uint8_t csPin[]  = {42, 40, 9, 14};
+    uint8_t dcPin[]  = {13, 13, 13, 13};
+    uint8_t rstPin[] = {41, 39, 10, 21};
+
+    Serial.print("scr.init...");
+
+    // 初始化u8g2
     for (int i = 0; i < 4; i++)
     {
-        u8g2[i].begin();
-        u8g2[i].enableUTF8Print();
-        u8g2[i].setBusClock(20000000);
+        u8g2[i] =
+            new U8G2_SH1108_128X160_F_4W_HW_SPI(U8G2_R0, /* cs=*/csPin[i], /* dc=*/dcPin[i], /* reset=*/rstPin[i]);
+        u8g2[i]->begin();
+        u8g2[i]->enableUTF8Print();
+        u8g2[i]->setBusClock(20000000);
     }
+    Serial.print(".");
 
-    // 泵循环标
-    pumpInd.setPosition(0, 0);
-    pumpInd.setPumpOnOff(true);
+    // panel排版
+    layout();
+    Serial.println("done");
+}
 
-    // 温度标识
-    tempInd.setPosition(0, 5);
+void Screen::layout()
+{
+    realtimeInd.setPosition(u8g2[0], 5, 5);
+    signalInd.setPosition(u8g2[0], 100, 5);
+    pumpInd.setPosition(u8g2[0], 14, 20);
+    flowInd.setPosition(u8g2[0], 17, 125);
+    panels[0].push_back(&realtimeInd);
+    panels[0].push_back(&signalInd);
+    panels[0].push_back(&pumpInd);
+    panels[0].push_back(&flowInd);
 
-    // 温度曲线
-    tempCur.setPosition(0, 70);
+    tempInd.setPosition(u8g2[1], 0, 5);
+    tempCur.setPosition(u8g2[1], 0, 70);
+    panels[1].push_back(&tempInd);
+    panels[1].push_back(&tempCur);
 
-    // 三个主控面板定位
-    timePanel.setPosition(0, 0);
-    waterPanel.setPosition(0, 0);
-    tempPanel.setPosition(0, 80);
+    waterPanel.setPosition(u8g2[2], 0, 10);
+    tempPanel.setPosition(u8g2[2], 0, 95);
+    panels[2].push_back(&waterPanel);
+    panels[2].push_back(&tempPanel);
 
-    // 将三个主要的输入面板放到vector中，以便快速循环切换焦点，注意三个面板的顺序
-    panels.push_back(&timePanel);
-    panels.push_back(&waterPanel);
-    panels.push_back(&tempPanel);
-
-    // 将所有其他Indicator放到vector中
-    indicators.push_back(&pumpInd);
-    indicators.push_back(&tempInd);
-
-    // 初始状态
-    curPanel = -1;
+    timePanel.setPosition(u8g2[3], 0, 10);
+    fpsInd.setPosition(u8g2[3], 65, 155);
+    panels[3].push_back(&timePanel);
+    panels[3].push_back(&fpsInd);
 }
 
 void Screen::onShift()
@@ -59,21 +75,21 @@ void Screen::onShift()
     if (curPanel == -1)
     {
         curPanel = 0;
-        panels[curPanel]->setSelected(true);
+        ctrlPanels[curPanel]->setSelected(true);
         return;
     }
 
     // 如果当前已选中某个面板，但没有激活，则轮换选中的面板
-    if (!(panels[curPanel]->getActive()))
+    if (!(ctrlPanels[curPanel]->getActive()))
     {
-        panels[curPanel]->setSelected(false);
-        curPanel = (curPanel + 1) % panels.size();
-        panels[curPanel]->setSelected(true);
+        ctrlPanels[curPanel]->setSelected(false);
+        curPanel = (curPanel + 1) % ctrlPanels.size();
+        ctrlPanels[curPanel]->setSelected(true);
         return;
     }
 
     // 当前选中的面板是在激活（设置）状态，则在面板内部切换输入字段
-    panels[curPanel]->switchInput();
+    ctrlPanels[curPanel]->switchInput();
     return;
 }
 
@@ -83,15 +99,15 @@ void Screen::onOK()
     if (curPanel == -1) return;
 
     // 如果当前面板被选中，但未激活，点OK将激活面板，进入设定状态
-    if (!(panels[curPanel]->getActive()))
+    if (!(ctrlPanels[curPanel]->getActive()))
     {
-        panels[curPanel]->setActive(true);
+        ctrlPanels[curPanel]->setActive(true);
     }
 
     // 如果当前面板在激活状态（正在设置该面板参数），点OK将退出激活，并发送设置结果给主控
     else
     {
-        panels[curPanel]->setActive(false);
+        ctrlPanels[curPanel]->setActive(false);
         curPanel = -1;
         wrapupSettings();
         reportSettings_cb(); // 回调，将所有参数返回给主控
@@ -104,10 +120,10 @@ void Screen::onUp()
     if (curPanel == -1) return;
 
     // 如果当前面板只是被选中，但未激活（不在设置状态），点UP无效
-    if (!(panels[curPanel]->getActive())) return;
+    if (!(ctrlPanels[curPanel]->getActive())) return;
 
     // 如果当前面板激活（在设置状态）
-    panels[curPanel]->inputUp();
+    ctrlPanels[curPanel]->inputUp();
 }
 
 void Screen::onDown()
@@ -116,10 +132,10 @@ void Screen::onDown()
     if (curPanel == -1) return;
 
     // 如果当前面板只是被选中，但未激活（不在设置状态），点DOWN无效
-    if (!(panels[curPanel]->getActive())) return;
+    if (!(ctrlPanels[curPanel]->getActive())) return;
 
     // 如果当前面板激活（在设置状态）
-    panels[curPanel]->inputDown();
+    ctrlPanels[curPanel]->inputDown();
 }
 
 void Screen::onStart()
@@ -127,11 +143,12 @@ void Screen::onStart()
     // 任何状态，应可以立即启动循环泵
 }
 
-void Screen::updateTempC(int temp) 
-{ 
-    tempPanel.setData(temp); 
+void Screen::updateSignal(int strength) { signalInd.setStrength(strength); }
+
+void Screen::updateTempC(int temp)
+{
+    tempPanel.setData(temp);
     tempInd.setTemperature(temp);
-    
 }
 
 // void Screen::updateVolume(int volume) { flowInfo.setData(volume); }
@@ -182,7 +199,7 @@ void Screen::importSettings(Settings set)
     tempPanel.setData(tempSettings);
 }
 
-void Screen::draw()
+float Screen::draw()
 {
     static unsigned long shiftMillis = 0;
     static int           shiftIndex  = 0;
@@ -191,23 +208,6 @@ void Screen::draw()
     static bool          buttonPressed = false;
 
     unsigned long curMillis = millis();
-    char          buf[20];
-
-    // 计算FPS
-    fpsCount++;
-    if (curMillis - fpsMillis >= 500)
-    {
-        fps       = (float)fpsCount * 1000 / (curMillis - fpsMillis);
-        fpsMillis = curMillis;
-        fpsCount  = 0;
-    }
-
-    // 切换屏幕
-    if (curMillis - shiftMillis >= 5000)
-    {
-        shiftIndex  = (shiftIndex + 1) % 4;
-        shiftMillis = curMillis;
-    }
 
     // 按键
     if (curMillis - buttonMillis >= 200)
@@ -218,66 +218,21 @@ void Screen::draw()
 
     if (buttonPressed)
     {
-        for (auto pnl : panels)
+        for (auto pnl : ctrlPanels)
             pnl->inputUp();
         buttonPressed = false;
     }
 
-    // ============================================================//
-    //                           多屏显示方案                        //
-    // ============================================================//
+    // 多屏显示
+    for (int i = 0; i < 4; i++)
+    {
+        u8g2[i]->clearBuffer();
+        for (int j = 0; j < panels[i].size(); j++)
+        {
+            panels[i][j]->draw();
+        }
+        u8g2[i]->sendBuffer();
+    }
 
-    // 分屏显示
-    u8g2[0].clearBuffer();
-    pumpInd.draw(&u8g2[0]);
-    // 显示FPS
-    snprintf(buf, sizeof(buf), "fps = %.1f", fps);
-    u8g2[0].setFont(FONT_SMALL_ENG);
-    u8g2[0].drawStr(1, 159, buf);
-    u8g2[0].sendBuffer();
-
-    u8g2[1].clearBuffer();
-    tempInd.draw(&u8g2[1]);
-    tempCur.draw(&u8g2[1]);
-    u8g2[1].sendBuffer();
-
-    u8g2[2].clearBuffer();
-    waterPanel.draw(&u8g2[2]);
-    tempPanel.draw(&u8g2[2]);
-    u8g2[2].sendBuffer();
-
-    u8g2[3].clearBuffer();
-    timePanel.draw(&u8g2[3]);
-    u8g2[3].sendBuffer();
-
-    // ============================================================//
-    //                           单屏轮流显示                        //
-    // ============================================================//
-    // u8g2[0].clearBuffer();
-
-    // // // 显示FPS
-    // snprintf(buf, sizeof(buf), "fps=%.1f", fps);
-    // u8g2[0].setFont(FONT_SMALL_ENG);
-    // u8g2[0].drawStr(1, 159, buf);
-
-    // if (shiftIndex == 0)
-    // {
-    //     pumpInd.draw(&u8g2[0]);
-    // }
-    // else if (shiftIndex == 1)
-    // {
-    //     tempInd.draw(&u8g2[0]);
-    //     tempCur.draw(&u8g2[0]);
-    // }
-    // else if (shiftIndex == 2)
-    // {
-    //     waterPanel.draw(&u8g2[0]);
-    //     tempPanel.draw(&u8g2[0]);
-    // }
-    // else // shiftIndex == 3
-    // {
-    //     timePanel.draw(&u8g2[0]);
-    // }
-
-    // u8g2[0].sendBuffer();
+    return fpsInd.getFps();
 }

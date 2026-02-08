@@ -23,39 +23,44 @@ class Screen
 {
 public:
     Screen();
-    void onShift();
-    void onOK();
-    void onUp();
-    void onDown();
-    void onStart();
-    void draw();
-    void updateTempC(int temp);
-    void updateVolume(int volume);
-    void updateTime(int h, int m, int s);
-    void updateDuration(int sec);
-    void importSettings(Settings set);
-    void setReportSettings_cb(function<Settings()>);
+    void  init();
+    void  onShift();
+    void  onOK();
+    void  onUp();
+    void  onDown();
+    void  onStart();
+    float draw();
+    void  updateSignal(int strength);
+    void  updateTempC(int temp);
+    void  updateVolume(int volume);
+    void  updateTime(int h, int m, int s);
+    void  updateDuration(int sec);
+    void  importSettings(Settings set);
+    void  setReportSettings_cb(function<Settings()>);
 
 private:
-    vector<U8G2_SH1108_128X160_F_4W_HW_SPI> u8g2;
+    U8G2_SH1108_128X160_F_4W_HW_SPI *u8g2[4];
 
-    PumpIndicator pumpInd;
-    TimeCtrl      timePanel;
-    WaterCtrl     waterPanel;
-    TempCtrl      tempPanel;
-    TempIndicator tempInd;
-    TempCurve     tempCur;
+    PumpIndicator     pumpInd;
+    FlowIndicator     flowInd;
+    TimeCtrl          timePanel;
+    WaterCtrl         waterPanel;
+    TempCtrl          tempPanel;
+    TempIndicator     tempInd;
+    TempCurve         tempCur;
+    SignalIndicator   signalInd;
+    RealtimeIndicator realtimeInd;
+    FPSIndicator      fpsInd;
 
-    vector<CtrlPanel *>  panels;
-    vector<Panel *>      indicators;
-    int                  curPanel = -1;
-    Settings             settings;
-    int                  curTime;
-    int                  duration;
+    vector<CtrlPanel *> ctrlPanels;
+    vector<Panel *>     panels[4];
+    int                 curPanel = -1;
+    Settings            settings;
+    int                 curTime;
+    int                 duration;
+    // int                  countOfDraw = 0; // 调用draw()的总次数
     function<Settings()> reportSettings_cb;
-    unsigned long        fpsMillis = 0;
-    int                  fpsCount  = 0;
-    float                fps       = 0;
+    void                 layout();
     void                 wrapupSettings();
 };
 

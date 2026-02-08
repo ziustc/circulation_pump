@@ -24,29 +24,40 @@ struct WaterSettings
     int pumpOnDuration;
 };
 
+struct TimeStruct
+{
+    int hour;
+    int minute;
+    int second;
+};
+
 class Panel
 {
 public:
     Panel();
-    virtual void setPosition(uint16_t left, uint16_t top);
-    uint16_t     getX();
-    uint16_t     getY();
-    void         setDisplayMode(DisplayMode mode);
-    void         setFlashInterval(int interval);
-    void         draw(U8G2 *u8g2Ptr); // 统一接口，处理完显示和闪烁后，调用虚函数drawCore()，由派生类自己实现
+    void     setPosition(U8G2 *u8g2, uint16_t left, uint16_t top);
+    U8G2    *getU8G2();
+    uint16_t getX();
+    uint16_t getY();
+    void     setDisplayMode(DisplayMode mode);
+    void     setFlashInterval(int interval);
+    void     draw(); // 统一接口，处理完显示和闪烁后，调用虚函数drawSpecific()，由派生类自己实现
+    void
+    draw(U8G2 *u8g2Ptr, uint16_t x, uint16_t y); // 绘制时指定坐标，仍然是调用虚函数drawSpecific()，由派生类自己实现
 
 protected:
     void registerPattern(Pattern *newPattern);
 
 private:
     vector<Pattern *> allPatterns;
+    U8G2             *u8g2;
     uint16_t          posX;
     uint16_t          posY;
-    DisplayMode       dispMode;                        // 显示模式（show/hide/flash）
-    bool              isVisibleNow;                    // 当前是否可见
-    long              lastSwitchTime;                  // flash状态时的上次切换时间
-    int               flashInterval;                   // 闪烁间隔时间
-    virtual void      drawSpecific(U8G2 *u8g2Ptr) = 0; // 纯虚函数，由draw()调用，在派生类中实现
+    DisplayMode       dispMode;           // 显示模式（show/hide/flash）
+    bool              isVisibleNow;       // 当前是否可见
+    long              lastSwitchTime;     // flash状态时的上次切换时间
+    int               flashInterval;      // 闪烁间隔时间
+    virtual void      drawSpecific() = 0; // 纯虚函数，由draw()调用，在派生类中实现
 };
 
 ////////////////////////////////////////////////////////////
@@ -85,7 +96,7 @@ public:
 
 private:
     void inputHandler() override;
-    void drawSpecific(U8G2 *u8g2Ptr) override;
+    void drawSpecific() override;
 };
 
 class TempCtrl : public CtrlPanel
@@ -97,7 +108,7 @@ public:
 
 private:
     void inputHandler() override;
-    void drawSpecific(U8G2 *u8g2Ptr) override;
+    void drawSpecific() override;
 };
 
 class TimeCtrl : public CtrlPanel
@@ -110,7 +121,7 @@ public:
 private:
     vector<Pattern> dayPlusSign;
     void            inputHandler() override;
-    void            drawSpecific(U8G2 *u8g2Ptr) override;
+    void            drawSpecific() override;
 };
 
 ////////////////////////////////////////////////////////////
@@ -125,11 +136,24 @@ public:
     void setWaterCurrent(float current);
 
 private:
-    bool        pumpIsOn;
-    float       waterCurrent;
-    MultiSymbol pumpSym;
-    Pattern     currentSym;
-    void        drawSpecific(U8G2 *u8g2Ptr) override;
+    bool          pumpIsOn;
+    TimeStruct    duration;
+    unsigned long startMillis;
+    MultiSymbol   pumpSym;
+    Pattern       durationSym;
+    void          calcDuration();
+    void          drawSpecific() override;
+};
+
+class FlowIndicator : public Panel
+{
+public:
+    FlowIndicator();
+    void setFlow(float flow);
+
+private:
+    float waterFlow;
+    void  drawSpecific() override;
 };
 
 class TempIndicator : public Panel
@@ -141,7 +165,7 @@ public:
 private:
     int     temperature;
     Pattern tempSym;
-    void    drawSpecific(U8G2 *u8g2Ptr) override;
+    void    drawSpecific() override;
 };
 
 /**
@@ -157,7 +181,50 @@ public:
 private:
     deque<int>  tempPoints;
     deque<bool> pumpOnPoints;
-    void        drawSpecific(U8G2 *u8g2Ptr) override;
+    void        drawSpecific() override;
+};
+
+/**
+ * @brief 11x23 信号强度面板
+ */
+class SignalIndicator : public Panel
+{
+public:
+    SignalIndicator();
+    void setStrength(int strength);
+
+private:
+    int  signalLevel;
+    void drawSpecific() override;
+};
+
+class RealtimeIndicator : public Panel
+{
+public:
+    RealtimeIndicator();
+    void setRealTime(TimeStruct realTime);
+
+private:
+    void          timeTick();
+    void          drawSpecific() override;
+    TimeStruct    realTime;
+    unsigned long lastMillis;
+    TimeStruct    lastSetTime;
+};
+
+class FPSIndicator : public Panel
+{
+public:
+    FPSIndicator();
+    float getFps();
+
+private:
+    float         screenFPS;
+    unsigned long lastMillis = 0;
+    int           fpsCount   = 0;
+    float         fps        = 0;
+    void          drawSpecific() override;
+    void          refreshTick();
 };
 
 #endif

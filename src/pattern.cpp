@@ -21,10 +21,13 @@ Pattern::Pattern(uint8_t *font, PatternType type)
     flashInterval  = 500; // 默认闪烁间隔500毫秒
 }
 
+void Pattern::setU8G2(U8G2 *u8g2Ptr) { u8g2 = u8g2Ptr; }
+
 void Pattern::setFont(uint8_t *font) { fontSet = font; }
 
-void Pattern::setPosition(uint16_t x, uint16_t y)
+void Pattern::setPosition(U8G2 *u8g2Ptr, uint16_t x, uint16_t y)
 {
+    u8g2 = u8g2Ptr;
     posX = x;
     posY = y;
 }
@@ -62,31 +65,29 @@ DisplayMode Pattern::getDisplayMode() { return dispMode; }
 
 void Pattern::setFlashInterval(int interval) { flashInterval = interval; }
 
-void Pattern::draw(U8G2 *u8g2Ptr) { drawCore(u8g2Ptr); }
+void Pattern::draw() { drawCore(); }
 
-/**
- * 
- */
 void Pattern::draw(U8G2 *u8g2Ptr, uint16_t x, uint16_t y)
 {
+    u8g2 = u8g2Ptr;
     posX = x;
     posY = y;
-    draw(u8g2Ptr);
+    draw();
     // 由于draw()是虚函数，这里会在设置好位置后，重新调用派生类的draw()函数，
     // 然后在从派生类的draw()调用基类的drawCore()完整顺序是：
     //
-    // InputDigit::(继承的) Pattern::draw(&u8g2, x, y)
+    // InputDigit::(继承的) Pattern::draw(u8g2, x, y)
     // ↓
-    // Pattern::draw(&u8g2, x, y) 的内部逻辑（设置位置后调用虚函数 draw(&u8g2)）
+    // Pattern::draw(u8g2, x, y) 的内部逻辑（设置位置后调用虚函数 draw()）
     // ↓
-    // InputDigit::draw(&u8g2)   ← 因为 draw() 是虚函数，被重写了
+    // InputDigit::draw() ← 因为 draw() 是虚函数，被重写了
     // ↓
-    // InputDigit::draw(&u8g2) 内部的绘制逻辑（例如计算数值等）
+    // InputDigit::draw() 内部的绘制逻辑（例如计算数值等）
     // ↓
-    // Pattern::drawCore(&u8g2)  ← 最终执行图像写入
+    // Pattern::drawCore() ← 最终执行图像写入
 }
 
-void Pattern::drawCore(U8G2 *u8g2Ptr)
+void Pattern::drawCore()
 {
     long currentTime = millis();
     if (dispMode == DM_HIDE)
@@ -113,14 +114,14 @@ void Pattern::drawCore(U8G2 *u8g2Ptr)
     {
         if (patternType == PT_BMP)
         {
-            u8g2Ptr->drawXBMP(posX, posY, width, height, fontSet + *((int *)patternCode));
+            u8g2->drawXBMP(posX, posY, width, height, fontSet + *((int *)patternCode));
             // patternCode原本为char*类型，如果为图案，在派生类的draw()中会让他指向一个int（4字节）类型变量offset的地址
             // 这里(int*)patternCode先转化为int类型指针，然后读取该地址的值，得到offset，在加上fontSet基地址，得到图案首地址
         }
         else // patternType == PT_FONT
         {
-            u8g2Ptr->setFont(fontSet);
-            u8g2Ptr->drawUTF8(posX, posY, patternCode);
+            u8g2->setFont(fontSet);
+            u8g2->drawUTF8(posX, posY, patternCode);
         }
     }
 }
@@ -182,12 +183,12 @@ void InputDigit::decrease()
         value = maxValue; // 循环到最大值
 }
 
-void InputDigit::draw(U8G2 *u8g2Ptr)
+void InputDigit::draw()
 {
     char buffer[10];
     snprintf(buffer, sizeof(buffer), "%0*d", digitCnt, value);
     setCode(buffer);
-    drawCore(u8g2Ptr);
+    drawCore();
 }
 
 ////////////////////////////////////////////////////////////
@@ -231,7 +232,7 @@ void MultiSymbol::rollSymbol() { symbolIndex = (symbolIndex + 1) % symbolCnt; }
 
 void MultiSymbol::rollSymbolBack() { symbolIndex = (symbolIndex - 1 + symbolCnt) % symbolCnt; }
 
-void MultiSymbol::draw(U8G2 *u8g2Ptr)
+void MultiSymbol::draw()
 {
     long currentTime  = millis();
     int  symbolOffset = symbolIndex * symbolLen;
@@ -242,5 +243,5 @@ void MultiSymbol::draw(U8G2 *u8g2Ptr)
         lastRollingTime = currentTime;
     }
     setCode((char *)(&symbolOffset));
-    drawCore(u8g2Ptr);
+    drawCore();
 }
