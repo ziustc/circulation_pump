@@ -38,6 +38,8 @@ Button  btnOK;
 Button  btnShift;
 Button  btnStart;
 Button *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnStart};
+void    initButton();
+void    reportSettings(Settings ctrlSet);
 
 void setup(void)
 {
@@ -69,22 +71,10 @@ void setup(void)
 
     // 准备显示屏
     scr.init();
+    scr.setReportSettings_cb(reportSettings);
 
-    // 面板初始化
-    // btnUp.setCallbackClick([]() { scr.onUp(); });
-    // btnUp.setTouchPin(TOUCH_UP);
-
-    // btnDown.setCallbackClick([]() { scr.onDown(); });
-    // btnDown.setTouchPin(TOUCH_DOWN);
-
-    // btnOK.setCallbackClick([]() { scr.onOK(); });
-    // btnOK.setTouchPin(TOUCH_OK);
-
-    // btnShift.setCallbackClick([]() { scr.onShift(); });
-    // btnShift.setTouchPin(TOUCH_SHIFT);
-
-    // btnStart.setCallbackClick([]() { scr.onStart(); });
-    // btnStart.setTouchPin(TOUCH_START);
+    // 按键初始化
+    initButton();
 }
 
 void loop(void)
@@ -98,12 +88,12 @@ void loop(void)
     // OTA监控需要频繁调用
     ota.handle();
 
-    // for (int i = 0; i < 5; i++)
-    //     buttons[i]->stateTick(touchRead(buttons[i]->getTouchPin()));
+    // 按键扫描
+    for (int i = 0; i < 5; i++)
+        buttons[i]->stateTick(touchRead(buttons[i]->getTouchPin()));
 
     scr.updateSignal(wifiRssi);
     fps = scr.draw(); // 4个屏幕刷新共约16ms
-
 
     // 确认若已稳定运行则保持本固件，否则重启后回滚到上次稳定固件
     if (!ota.isStable()) countOfDraw++;
@@ -117,4 +107,30 @@ void loop(void)
         Serial.printf("fps = %.1f\r\n", fps);
         last_millis = millis();
     }
+}
+
+void initButton()
+{
+    btnUp.setTouchPin(TOUCH_UP);
+    btnUp.setLongPressEnable(true);
+    btnUp.setCallbackClick([]() { scr.onUp(); });
+
+    btnDown.setTouchPin(TOUCH_DOWN);
+    btnDown.setLongPressEnable(true);
+    btnDown.setCallbackClick([]() { scr.onDown(); });
+
+    btnOK.setTouchPin(TOUCH_OK);
+    btnOK.setCallbackClick([]() { scr.onOK(); });
+
+    btnShift.setTouchPin(TOUCH_SHIFT);
+    btnShift.setCallbackClick([]() { scr.onShift(); });
+
+    btnStart.setTouchPin(TOUCH_START);
+    btnStart.setCallbackClick([]() { scr.onStart(); });
+}
+
+void reportSettings(Settings ctrlSet)
+{
+    // 这里应使用MQTT将数据发送出去
+    Serial.println("report");
 }

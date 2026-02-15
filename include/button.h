@@ -6,12 +6,18 @@
 #define TP_MAX_ARR   32
 #define TP_THRESHOLD 1.05f
 
+#define DEBOUNCE_MS   50   // 防抖时间
+#define LONG_PRESS_MS 1000 // 长按启动时间
+#define REPEAT_MS     200  // 长按连续触发间隔
+
 using namespace std;
 
 class Button
 {
 public:
     Button();
+    void setLongPressEnable(bool enable);
+    bool getLongPressEnable();
     void setCallbackClick(function<void()> cbClick);
     void setTouchPin(int pinNum);
     int  getTouchPin();
@@ -22,6 +28,7 @@ private:
     int              pinValues[32] = {0};
     int              pinSum        = 0;
     int              tpIndex       = 0;
+    bool             lpEnable      = false;
     bool             tpCalibrated  = false;
     bool             lastStableState;
     bool             lastReading;

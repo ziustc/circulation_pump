@@ -133,12 +133,12 @@ class PumpIndicator : public Panel
 public:
     PumpIndicator();
     void setPumpOnOff(bool isON);
-    void setWaterCurrent(float current);
+    bool getPumpOnOff();
 
 private:
-    bool          pumpIsOn;
+    bool          isPumpOn = false;
     TimeStruct    duration;
-    unsigned long startMillis;
+    unsigned long startMillis = 0;
     MultiSymbol   pumpSym;
     Pattern       durationSym;
     void          calcDuration();
@@ -174,14 +174,20 @@ private:
 class TempCurve : public Panel
 {
 public:
-    static const int MAX_DATA_POINTS = 50;
     TempCurve();
-    void addDataPoint(int temp, bool pumpOn);
+    void setTemperature(int temp);
+    void setPumpOnOff(bool isOn);
 
 private:
-    deque<int>  tempPoints;
-    deque<bool> pumpOnPoints;
-    void        drawSpecific() override;
+    static constexpr int MAX_DATA_POINTS = 50;        // 曲线一共50个点
+    static constexpr int CURVE_INTERVAL  = 30 * 1000; // 30秒刷新一个点
+    int                  temperature;
+    bool                 isPumpOn;
+    deque<int>           tempPoints;
+    deque<bool>          pumpOnPoints;
+    unsigned long        lastMillis = 0;
+    void                 inputHandler();
+    void                 drawSpecific() override;
 };
 
 /**

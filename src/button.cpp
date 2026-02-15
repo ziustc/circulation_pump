@@ -4,10 +4,6 @@
 
 using namespace std;
 
-#define DEBOUNCE_MS   50   // 防抖时间
-#define LONG_PRESS_MS 1000 // 长按启动时间
-#define REPEAT_MS     300  // 长按连续触发间隔
-
 Button::Button()
 {
     lastStableState  = false;
@@ -17,6 +13,10 @@ Button::Button()
     lastClickTime    = 0;
     callbackClick    = nullptr;
 }
+
+void Button::setLongPressEnable(bool enable) { lpEnable = enable; }
+
+bool Button::getLongPressEnable() { return lpEnable; }
 
 void Button::setCallbackClick(function<void()> cbClick) { callbackClick = cbClick; }
 
@@ -57,8 +57,8 @@ void Button::stateTick(int pinValue)
         }
     }
 
-    // 若持续按下状态超过阈值，则触发长按事件
-    if (lastStableState && (now - firstClickTime) > LONG_PRESS_MS)
+    // 若该按键支持长按多次触发，且持续按下状态超过阈值，则触发长按事件
+    if (getLongPressEnable() && lastStableState && (now - firstClickTime) > LONG_PRESS_MS)
     {
         onLongPress(); // 每次调用都触发一次长按事件
     }

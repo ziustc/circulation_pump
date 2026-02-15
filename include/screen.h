@@ -30,13 +30,13 @@ public:
     void  onDown();
     void  onStart();
     float draw();
-    void  updateSignal(int strength);
-    void  updateTempC(int temp);
-    void  updateVolume(int volume);
     void  updateTime(int h, int m, int s);
-    void  updateDuration(int sec);
+    void  updateSignal(int strength);
+    void  updatePumpOn(bool isOn);
+    void  updateTempC(int temp);
+    void  updateFlow(int volume);
     void  importSettings(Settings set);
-    void  setReportSettings_cb(function<Settings()>);
+    void  setReportSettings_cb(function<void(Settings)> cb);
 
 private:
     U8G2_SH1108_128X160_F_4W_HW_SPI *u8g2[4];
@@ -52,16 +52,16 @@ private:
     RealtimeIndicator realtimeInd;
     FPSIndicator      fpsInd;
 
-    vector<CtrlPanel *> ctrlPanels;
-    vector<Panel *>     panels[4];
-    int                 curPanel = -1;
-    Settings            settings;
-    int                 curTime;
-    int                 duration;
-    // int                  countOfDraw = 0; // 调用draw()的总次数
-    function<Settings()> reportSettings_cb;
-    void                 layout();
-    void                 wrapupSettings();
+    vector<CtrlPanel *>      ctrlPanels;
+    vector<Panel *>          panels[4];
+    int                      curPanel = -1;
+    Settings                 settings;
+    int                      curTime;
+    int                      duration;
+    function<void(Settings)> reportSettings_cb;
+    void                     layout();
+    void                     initIndicatorValue();
+    void                     wrapupSettings();
 };
 
 #endif // SCREEN_H
