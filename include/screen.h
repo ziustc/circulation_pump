@@ -36,7 +36,7 @@ public:
     void  updateTempC(int temp);
     void  updateFlow(int volume);
     void  importSettings(Settings set);
-    void  setReportSettings_cb(function<void(Settings)> cb);
+    void  setExportSettings_cb(function<void(Settings)> cb);
 
 private:
     U8G2_SH1108_128X160_F_4W_HW_SPI *u8g2[4];
@@ -55,13 +55,12 @@ private:
     vector<CtrlPanel *>      ctrlPanels;
     vector<Panel *>          panels[4];
     int                      curPanel = -1;
-    Settings                 settings;
     int                      curTime;
     int                      duration;
-    function<void(Settings)> reportSettings_cb;
+    function<void(Settings)> exportSettings_cb;
     void                     layout();
     void                     initIndicatorValue();
-    void                     wrapupSettings();
+    Settings                 wrapupSettings();
 };
 
 #endif // SCREEN_H

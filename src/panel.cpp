@@ -648,14 +648,9 @@ TempCurve::TempCurve()
 void TempCurve::setTemperature(int temp)
 {
     temperature = temp;
-    inputHandler();
 }
 
-void TempCurve::setPumpOnOff(bool isOn)
-{
-    isPumpOn = isOn;
-    inputHandler();
-}
+void TempCurve::setPumpOnOff(bool isOn) { isPumpOn = isOn; }
 
 void TempCurve::inputHandler()
 {
@@ -677,6 +672,8 @@ void TempCurve::inputHandler()
 void TempCurve::drawSpecific()
 {
     U8G2 *u8g2 = getU8G2();
+
+    inputHandler();
 
     // temp坐标轴
     u8g2->drawLine(getX() + 18, getY() + 50, getX() + 123, getY() + 50); // X轴

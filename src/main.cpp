@@ -71,7 +71,7 @@ void setup(void)
 
     // 准备显示屏
     scr.init();
-    scr.setReportSettings_cb(reportSettings);
+    scr.setExportSettings_cb(reportSettings);
 
     // 按键初始化
     initButton();
@@ -129,7 +129,7 @@ void initButton()
     btnStart.setCallbackClick([]() { scr.onStart(); });
 }
 
-void reportSettings(Settings ctrlSet)
+void reportSettings(Settings set)
 {
     // 这里应使用MQTT将数据发送出去
     Serial.println("report");

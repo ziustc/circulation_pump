@@ -130,8 +130,7 @@ void Screen::onOK()
     {
         ctrlPanels[curPanel]->setActive(false);
         curPanel = -1;
-        wrapupSettings();
-        reportSettings_cb(settings); // 回调，将所有参数返回给主控
+        exportSettings_cb(wrapupSettings()); // 回调，将所有参数返回给主控
     }
 }
 
@@ -186,25 +185,28 @@ void Screen::updateTempC(int temp)
 
 void Screen::updateFlow(int flow) { flowInd.setFlow(flow); }
 
-void Screen::setReportSettings_cb(function<void(Settings)> cb) { reportSettings_cb = cb; }
+void Screen::setExportSettings_cb(function<void(Settings)> cb) { exportSettings_cb = cb; }
 
-void Screen::wrapupSettings()
+Settings Screen::wrapupSettings()
 {
+    Settings      ret;
     TimeSettings  timeSettings  = timePanel.getSettings();
     WaterSettings waterSettings = waterPanel.getSettings();
     int           tempSettings  = tempPanel.getSettings();
 
     for (int i = 0; i < 3; i++)
     {
-        settings.startHour[i]   = timeSettings.startHour[i];
-        settings.startMinute[i] = timeSettings.startMinute[i];
-        settings.endHour[i]     = timeSettings.endHour[i];
-        settings.endMinute[i]   = timeSettings.endMinute[i];
+        ret.startHour[i]   = timeSettings.startHour[i];
+        ret.startMinute[i] = timeSettings.startMinute[i];
+        ret.endHour[i]     = timeSettings.endHour[i];
+        ret.endMinute[i]   = timeSettings.endMinute[i];
     }
-    settings.waterMinSec    = waterSettings.minSec;
-    settings.waterMaxSec    = waterSettings.maxSec;
-    settings.pumpOnDuration = waterSettings.pumpOnDuration;
-    settings.demandTemp     = tempSettings;
+    ret.waterMinSec    = waterSettings.minSec;
+    ret.waterMaxSec    = waterSettings.maxSec;
+    ret.pumpOnDuration = waterSettings.pumpOnDuration;
+    ret.demandTemp     = tempSettings;
+
+    return ret;
 }
 
 void Screen::importSettings(Settings set)
