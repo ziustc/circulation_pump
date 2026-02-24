@@ -24,13 +24,6 @@ struct WaterSettings
     int pumpOnDuration;
 };
 
-struct TimeStruct
-{
-    int hour;
-    int minute;
-    int second;
-};
-
 class Panel
 {
 public:
@@ -137,7 +130,8 @@ public:
 
 private:
     bool          isPumpOn = false;
-    TimeStruct    duration;
+    int           durationMin; // 开启时长：分
+    int           durationSec; // 开启时长：秒
     unsigned long startMillis = 0;
     MultiSymbol   pumpSym;
     Pattern       durationSym;
@@ -208,14 +202,13 @@ class RealtimeIndicator : public Panel
 {
 public:
     RealtimeIndicator();
-    void setRealTime(TimeStruct realTime);
+    void setRealTime(int h, int m, int s);
 
 private:
-    void          timeTick();
-    void          drawSpecific() override;
-    TimeStruct    realTime;
-    unsigned long lastMillis;
-    TimeStruct    lastSetTime;
+    int  hour   = 0;
+    int  minute = 0;
+    int  second = 0;
+    void drawSpecific() override;
 };
 
 class FPSIndicator : public Panel

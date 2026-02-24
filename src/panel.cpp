@@ -507,7 +507,7 @@ void PumpIndicator::drawSpecific()
 
     // 计算循环泵开启时长
     calcDuration();
-    snprintf(buf, sizeof(buf), "%d:%02d", duration.minute, duration.second);
+    snprintf(buf, sizeof(buf), "%d:%02d", durationMin, durationSec);
     durationSym.setCode(buf);
 
     pumpSym.draw();
@@ -542,20 +542,19 @@ void PumpIndicator::calcDuration()
         dur = (millis() - startMillis) / 1000;
         if (dur < 10 * 60)
         {
-            duration.minute = dur / 60;
-            duration.second = dur % 60;
+            durationMin = dur / 60;
+            durationSec = dur % 60;
         }
         else
         {
-            duration.minute = 9;
-            duration.second = 59;
+            durationMin = 9;
+            durationSec = 59;
         }
     }
     else
     {
-        duration.hour   = 0;
-        duration.minute = 0;
-        duration.second = 0;
+        durationMin = 0;
+        durationSec = 0;
     }
 }
 
@@ -645,10 +644,7 @@ TempCurve::TempCurve()
     pumpOnPoints.push_front(false);
 }
 
-void TempCurve::setTemperature(int temp)
-{
-    temperature = temp;
-}
+void TempCurve::setTemperature(int temp) { temperature = temp; }
 
 void TempCurve::setPumpOnOff(bool isOn) { isPumpOn = isOn; }
 
@@ -746,42 +742,22 @@ void SignalIndicator::drawSpecific()
 RealtimeIndicator::RealtimeIndicator()
 {
     setPosition(nullptr, 0, 0);
-    realTime = TimeStruct{0, 0, 0};
 }
 
-void RealtimeIndicator::setRealTime(TimeStruct time)
+void RealtimeIndicator::setRealTime(int h, int m, int s)
 {
-    realTime    = time;
-    lastMillis  = millis();
-    lastSetTime = time;
-}
-
-void RealtimeIndicator::timeTick()
-{
-    unsigned long now = millis();
-    int           addSec;
-    int           addMin;
-    int           addHour;
-
-    addSec = (now - lastMillis) / 1000;
-
-    realTime.second += addSec;
-
-    realTime.minute += realTime.second / 60;
-    realTime.second = realTime.second % 60;
-
-    realTime.hour += realTime.minute / 60;
-    realTime.minute = realTime.minute % 60;
-
-    realTime.hour = realTime.hour % 60;
+    hour   = h;
+    minute = m;
+    second = s;
 }
 
 void RealtimeIndicator::drawSpecific()
 {
-    U8G2 *u8g2   = getU8G2();
-    char  buf[6] = {0};
+    U8G2 *u8g2 = getU8G2();
 
-    snprintf(buf, sizeof(buf), "%02d:%02d", realTime.hour, realTime.minute);
+    char buf[6] = {0};
+
+    snprintf(buf, sizeof(buf), "%02d:%02d", hour, minute);
 
     u8g2->setFont(FONT_MID_ENG);
     u8g2->drawUTF8(getX(), getY() + 11, buf);

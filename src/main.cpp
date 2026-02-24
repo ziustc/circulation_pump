@@ -1,14 +1,18 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_sntp.h>
+#include <U8g2lib.h>
 #include "ota.h"
 #include "ssid.h"
-#include <stdio.h>
-#include <U8g2lib.h>
 #include "screen.h"
 #include "panel.h"
 #include "pattern.h"
 #include "button.h"
+#include "controller.h"
 
+#define PUMP_PIN    16
+#define TEMP_PIN    17
+#define FLOW_PIN    18
 #define TOUCH_UP    4
 #define TOUCH_DOWN  5
 #define TOUCH_SHIFT 6
@@ -17,35 +21,38 @@
 
 using namespace std;
 
-// 让 printf 输出到 Serial
-extern "C" int _write(int file, char *ptr, int len)
-{
-    for (int i = 0; i < len; i++)
-    {
-        Serial.write(ptr[i]);
-    }
-    return len;
-}
-
 OtaAssist ota; // 我自己的OTA类
 
-long last_millis = 0;
+long lastMillis = 0;
 
-Screen  scr;
-Button  btnUp;
-Button  btnDown;
-Button  btnOK;
-Button  btnShift;
-Button  btnStart;
-Button *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnStart};
-void    initButton();
-void    reportSettings(Settings ctrlSet);
+Screen       scr;
+Button       btnUp;
+Button       btnDown;
+Button       btnOK;
+Button       btnShift;
+Button       btnStart;
+Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnStart};
+PumpCtrlUnit ptu(scr, PUMP_PIN, TEMP_PIN, FLOW_PIN);
+void         initButton();
+void         reportSettings(Settings ctrlSet);
+void         timeCalibNotice(struct timeval *tv);
 
 void setup(void)
 {
+    // 初始化引脚
+    pinMode(39, OUTPUT);
+    pinMode(40, OUTPUT);
+    pinMode(41, OUTPUT);
+    pinMode(42, OUTPUT);
+    pinMode(9, OUTPUT);
+    pinMode(10, OUTPUT);
+    pinMode(14, OUTPUT);
+    pinMode(21, OUTPUT);
+
     // 以便让串口助手来得及显示ESP32发来的串口提示信息
     delay(1000);
 
+    // 初始化串口
     Serial.begin(115200);
     Serial.println("Circulation Pump Reboot");
 
@@ -69,6 +76,10 @@ void setup(void)
     // 若是OTA升级，需要注释掉本条
     // ota.clearOtaData();
 
+    // 同步真实时间
+    configTime(8 * 3600, 0, NTP_SERVER);
+    sntp_set_time_sync_notification_cb(timeCalibNotice);
+
     // 准备显示屏
     scr.init();
     scr.setExportSettings_cb(reportSettings);
@@ -88,6 +99,9 @@ void loop(void)
     // OTA监控需要频繁调用
     ota.handle();
 
+    // 泵控制单元
+    ptu.ctrlTick();
+
     // 按键扫描
     for (int i = 0; i < 5; i++)
         buttons[i]->stateTick(touchRead(buttons[i]->getTouchPin()));
@@ -102,10 +116,10 @@ void loop(void)
         ota.confirm();
     }
 
-    if (millis() - last_millis >= 1000)
+    if (millis() - lastMillis >= 1000)
     {
         Serial.printf("fps = %.1f\r\n", fps);
-        last_millis = millis();
+        lastMillis = millis();
     }
 }
 
@@ -134,3 +148,5 @@ void reportSettings(Settings set)
     // 这里应使用MQTT将数据发送出去
     Serial.println("report");
 }
+
+void timeCalibNotice(struct timeval *tv) { Serial.println("sntp time calibrated."); }

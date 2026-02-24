@@ -83,7 +83,7 @@ void Screen::initIndicatorValue()
     tempCur.setTemperature(25);
     tempCur.setPumpOnOff(false);
     signalInd.setStrength(-90);
-    realtimeInd.setRealTime({0, 0, 0});
+    realtimeInd.setRealTime(0, 0, 0);
 }
 
 void Screen::onShift()
@@ -167,7 +167,7 @@ void Screen::onStart()
     tempCur.setPumpOnOff(isPumpOn);
 }
 
-void Screen::updateTime(int h, int m, int s) { realtimeInd.setRealTime({h, m, s}); }
+void Screen::updateTime(int h, int m, int s) { realtimeInd.setRealTime(h, m, s); }
 
 void Screen::updateSignal(int strength) { signalInd.setStrength(strength); }
 

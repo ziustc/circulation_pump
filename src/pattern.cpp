@@ -1,5 +1,6 @@
-#include "Arduino.h"
-#include "u8g2lib.h"
+#include <Arduino.h>
+#include <stdio.h>
+#include "U8g2lib.h"
 #include "pattern.h"
 
 ////////////////////////////////////////////////////////////
