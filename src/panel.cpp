@@ -739,10 +739,7 @@ void SignalIndicator::drawSpecific()
 /*                      真实时间指示器                         */
 /*************************************************************/
 
-RealtimeIndicator::RealtimeIndicator()
-{
-    setPosition(nullptr, 0, 0);
-}
+RealtimeIndicator::RealtimeIndicator() { setPosition(nullptr, 0, 0); }
 
 void RealtimeIndicator::setRealTime(int h, int m, int s)
 {
@@ -781,7 +778,7 @@ void FPSIndicator::drawSpecific()
 
     refreshTick();
 
-    snprintf(buf, sizeof(buf), "fps=%.1f", fps);
+    snprintf(buf, sizeof(buf), "otafps=%.1f", fps);
     u8g2->setFont(FONT_MID_ENG);
     u8g2->drawStr(getX(), getY(), buf);
 }

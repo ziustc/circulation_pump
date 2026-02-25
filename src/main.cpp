@@ -1,14 +1,19 @@
 #include <Arduino.h>
+
 #include <WiFi.h>
+
 #include <esp_sntp.h>
 #include <U8g2lib.h>
-#include "ota.h"
+
 #include "ssid.h"
+#include "httpota.h"
+#include "httpota.h"
 #include "screen.h"
 #include "panel.h"
 #include "pattern.h"
 #include "button.h"
 #include "controller.h"
+#include "console.h"
 
 #define PUMP_PIN    16
 #define TEMP_PIN    17
@@ -21,7 +26,8 @@
 
 using namespace std;
 
-OtaAssist ota; // 我自己的OTA类
+// OtaAssist     ota;     // 我自己的OTA类
+TelnetConsole console; // 我自己的Telnet类
 
 long lastMillis = 0;
 
@@ -33,9 +39,11 @@ Button       btnShift;
 Button       btnStart;
 Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnStart};
 PumpCtrlUnit ptu(scr, PUMP_PIN, TEMP_PIN, FLOW_PIN);
-void         initButton();
-void         reportSettings(Settings ctrlSet);
-void         timeCalibNotice(struct timeval *tv);
+OtaAssist    ota(80);
+
+void initButton();
+void reportSettings(Settings ctrlSet);
+void timeCalibNotice(struct timeval *tv);
 
 void setup(void)
 {
@@ -76,6 +84,10 @@ void setup(void)
     // 若是OTA升级，需要注释掉本条
     // ota.clearOtaData();
 
+    // 启动Telnet控制台
+    console.begin();
+    console.log("Telnet console started. Connect to %s:%d\r\n", WiFi.localIP().toString().c_str(), CONSOLE_PORT);
+
     // 同步真实时间
     configTime(8 * 3600, 0, NTP_SERVER);
     sntp_set_time_sync_notification_cb(timeCalibNotice);
@@ -97,7 +109,10 @@ void loop(void)
     // 整体循环频率约60Hz
 
     // OTA监控需要频繁调用
-    ota.handle();
+    ota.loop();
+
+    // Telnet控制台处理
+    console.loop();
 
     // 泵控制单元
     ptu.ctrlTick();
@@ -116,10 +131,11 @@ void loop(void)
         ota.confirm();
     }
 
-    if (millis() - lastMillis >= 1000)
+    unsigned long now = millis();
+    if (now - lastMillis >= 1000)
     {
-        Serial.printf("fps = %.1f\r\n", fps);
-        lastMillis = millis();
+        console.log("Running... uptime=%lu s\r\n", now / 1000);
+        lastMillis = now;
     }
 }
 
