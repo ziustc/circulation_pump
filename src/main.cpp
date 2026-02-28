@@ -7,13 +7,12 @@
 
 #include "ssid.h"
 #include "httpota.h"
-#include "httpota.h"
 #include "screen.h"
 #include "panel.h"
 #include "pattern.h"
 #include "button.h"
 #include "controller.h"
-#include "console.h"
+#include "Logger.h"
 
 #define PUMP_PIN    16
 #define TEMP_PIN    17
@@ -25,9 +24,6 @@
 #define TOUCH_START 8
 
 using namespace std;
-
-// OtaAssist     ota;     // 我自己的OTA类
-TelnetConsole console; // 我自己的Telnet类
 
 long lastMillis = 0;
 
@@ -45,24 +41,23 @@ void initButton();
 void reportSettings(Settings ctrlSet);
 void timeCalibNotice(struct timeval *tv);
 
-void setup(void)
+/**
+ * 这是一套基础配置的模板，配置串口，连接WiFi，启动OTA服务，准备日志服务器，并同步时间
+ * 顺序和内容尽量不要变，以免启动即重启无法OTA重刷
+ * 需要：
+#include <WiFi.h>
+#include <esp_sntp.h>
+#include "httpota.h"
+#include "Logger.h"
+#include "ssid.h"
+OtaAssist ota(80);
+void timeCalibNotice(struct timeval *tv) { Serial.println("sntp time calibrated."); }
+ */
+void templateOfSetup()
 {
-    // 初始化引脚
-    pinMode(39, OUTPUT);
-    pinMode(40, OUTPUT);
-    pinMode(41, OUTPUT);
-    pinMode(42, OUTPUT);
-    pinMode(9, OUTPUT);
-    pinMode(10, OUTPUT);
-    pinMode(14, OUTPUT);
-    pinMode(21, OUTPUT);
-
-    // 以便让串口助手来得及显示ESP32发来的串口提示信息
-    delay(1000);
-
     // 初始化串口
     Serial.begin(115200);
-    Serial.println("Circulation Pump Reboot");
+    Serial.println("Reboot");
 
     // 连接 WiFi
     Serial.print("WIFI Connecting...");
@@ -78,19 +73,33 @@ void setup(void)
     Serial.print("success. IP = ");
     Serial.println(WiFi.localIP());
 
-    // 准备OTA
+    // 启动OTA服务
     ota.init();
 
     // 若是OTA升级，需要注释掉本条
     // ota.clearOtaData();
 
-    // 启动Telnet控制台
-    console.begin();
-    console.log("Telnet console started. Connect to %s:%d\r\n", WiFi.localIP().toString().c_str(), CONSOLE_PORT);
+    // 准备日志服务器
+    logger.begin();
+    logger.println("Logger initialized.");
 
     // 同步真实时间
     configTime(8 * 3600, 0, NTP_SERVER);
     sntp_set_time_sync_notification_cb(timeCalibNotice);
+}
+
+/**
+ * 时间校准回调函数，与前面templateOfSetup()函数共用。
+ */
+void timeCalibNotice(struct timeval *tv) { logger.println("sntp time calibrated."); }
+
+void setup(void)
+{
+    // 初始化引脚
+    initPin();
+
+    // 基础配置模板
+    templateOfSetup();
 
     // 准备显示屏
     scr.init();
@@ -111,8 +120,8 @@ void loop(void)
     // OTA监控需要频繁调用
     ota.loop();
 
-    // Telnet控制台处理
-    console.loop();
+    // 日志服务器监控
+    logger.loop();
 
     // 泵控制单元
     ptu.ctrlTick();
@@ -134,9 +143,21 @@ void loop(void)
     unsigned long now = millis();
     if (now - lastMillis >= 1000)
     {
-        console.log("Running... uptime=%lu s\r\n", now / 1000);
+        logger.printf("Running... uptime = %lus, fps = %.2f\r\n", now / 1000, fps);
         lastMillis = now;
     }
+}
+
+void initPin()
+{
+    pinMode(39, OUTPUT);
+    pinMode(40, OUTPUT);
+    pinMode(41, OUTPUT);
+    pinMode(42, OUTPUT);
+    pinMode(9, OUTPUT);
+    pinMode(10, OUTPUT);
+    pinMode(14, OUTPUT);
+    pinMode(21, OUTPUT);
 }
 
 void initButton()
@@ -162,7 +183,5 @@ void initButton()
 void reportSettings(Settings set)
 {
     // 这里应使用MQTT将数据发送出去
-    Serial.println("report");
+    logger.println("report");
 }
-
-void timeCalibNotice(struct timeval *tv) { Serial.println("sntp time calibrated."); }
