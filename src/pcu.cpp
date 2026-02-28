@@ -1,4 +1,4 @@
-#include "controller.h"
+#include "pcu.h"
 
 /*************************************************************/
 /*                        FlowSensor                         */
@@ -107,7 +107,7 @@ int TempSensor::getTempC()
         sumADC += adcArr[i];
     float        avgADC  = (float)sumADC / ADC_ARR_LEN;
     unsigned int voltage = esp_adc_cal_raw_to_voltage(avgADC, &adcChars);
-    return (voltage/1000.0f - B) / K;
+    return (voltage / 1000.0f - B) / K;
 }
 
 void TempSensor::sensorTick()
