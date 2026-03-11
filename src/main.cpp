@@ -26,11 +26,7 @@ using namespace std;
 long lastMillis = 0;
 
 Screen       scr;
-Button       btnUp;
-Button       btnDown;
-Button       btnOK;
-Button       btnShift;
-Button       btnStart;
+Button       btnUp, btnDown, btnOK, btnShift, btnStart;
 Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnStart};
 PumpCtrlUnit ptu(scr, PUMP_PIN, TEMP_PIN, FLOW_PIN);
 OtaAssist    ota(80);
@@ -42,7 +38,7 @@ void timeCalibNotice(struct timeval *tv);
 /**
  * 这是一套基础配置的模板，配置串口，连接WiFi，启动OTA服务，准备日志服务器，并同步时间
  * 顺序和内容尽量不要变，以免启动即重启无法OTA重刷
- * 需要：
+ * 需要如下依赖：
 #include <WiFi.h>
 #include <esp_sntp.h>
 #include "httpota.h"
@@ -56,11 +52,14 @@ void templateOfSetup()
     // 初始化串口
     Serial.begin(115200);
     Serial.println("Reboot");
+    // 若是OTA升级，需要注释掉本条
+    // ota.clearOtaData();
+    ota.stableCheck();
 
     // 连接 WiFi
     Serial.print("WIFI Connecting...");
-    WiFi.mode(WIFI_STA);
     WiFi.setHostname(HOSTNAME);
+    WiFi.mode(WIFI_STA);
     WiFi.begin(SSID, PASSWORD);
     if (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
@@ -69,13 +68,12 @@ void templateOfSetup()
         ESP.restart();
     }
     Serial.print("success. IP = ");
-    Serial.println(WiFi.localIP());
+    Serial.print(WiFi.localIP());
+    Serial.print(", Hostname = ");
+    Serial.println(WiFi.getHostname());
 
     // 启动OTA服务
-    ota.init();
-
-    // 若是OTA升级，需要注释掉本条
-    // ota.clearOtaData();
+    ota.initService();
 
     // 准备日志服务器
     logger.begin();
@@ -93,18 +91,20 @@ void timeCalibNotice(struct timeval *tv) { logger.println("sntp time calibrated.
 
 void setup(void)
 {
-    // 初始化引脚
-    initPin();
-
     // 基础配置模板
     templateOfSetup();
+
+    // 初始化引脚
+    initPin();
 
     // 准备显示屏
     scr.init();
     scr.setExportSettings_cb(reportSettings);
+    Serial.println("Screen initialized.");
 
     // 按键初始化
     initButton();
+    Serial.println("Button initialized.");
 }
 
 void loop(void)

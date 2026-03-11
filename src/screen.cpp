@@ -26,8 +26,6 @@ void Screen::init()
     uint8_t dcPin[]  = {13, 13, 13, 13};
     uint8_t rstPin[] = {41, 39, 10, 21};
 
-    Serial.print("scr.init...");
-
     // 初始化u8g2
     for (int i = 0; i < 4; i++)
     {
@@ -37,15 +35,12 @@ void Screen::init()
         u8g2[i]->enableUTF8Print();
         u8g2[i]->setBusClock(20000000);
     }
-    Serial.print(".");
 
     // panel排版
     layout();
 
     // 数值初始化
     initIndicatorValue();
-
-    Serial.println("done");
 }
 
 void Screen::layout()

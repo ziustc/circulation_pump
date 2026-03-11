@@ -1,59 +1,115 @@
 #include "httpota.h"
 #include <esp_ota_ops.h>
-#include <Preferences.h>
 #include <math.h>
 
 #define PREF_OTA_NEW     1
 #define PREF_OTA_PENDING 2
 #define PREF_OTA_STABLE  3
+#define PREF_OTA_INVALID 4
+#define PREF_UART_STABLE 5
 
-Preferences prefs;
-
-int OtaAssist::_status = PREF_OTA_NEW;
+/** _prefs("ota")中有如下NVS信息：
+ * "VERSION": String，当前固件版本号字符串
+ * "APP_STATUS": Int，当前OTA状态
+ * "VERIFY_TIMES": Int，当前OTA状态为PENDING时的重启验证次数，超过3次则认为不稳定，回滚到上一个版本
+ * "STABLE_SUBTYPE": Int，上一个稳定版本的分区subtype，PREF_OTA_INVALID时回滚到该分区
+ * "STABLE_VERSION": String，上一个稳定版本的版本号字符串，回滚后复制
+ */
 
 OtaAssist::OtaAssist(uint16_t port)
 : _server(port)
 , _version("unknown")
+, _prefs()
 {
 }
 
-void OtaAssist::init()
+void OtaAssist::stableCheck()
+{
+    esp_ota_img_states_t state;
+
+    _running = (esp_partition_t *)esp_ota_get_running_partition();
+    _prefs.begin("ota", false);
+    _version = _prefs.getString("VERSION", "unknown");
+    _status  = _prefs.getInt("APP_STATUS", PREF_UART_STABLE); // 如果没有记录，则一定是串口烧录，按稳定处理
+    Serial.printf(
+        "[OTA] current partition: %s, version: %s\r\n", strSubtype(_running->subtype).c_str(), _version.c_str());
+
+    // 如果当前分区状态为UART烧录，则默认稳定，无需处理
+    if (_status == PREF_UART_STABLE)
+    {
+        _status = PREF_UART_STABLE;
+        _prefs.putInt("APP_STATUS", PREF_UART_STABLE);
+        _prefs.putInt("STABLE_SUBTYPE", _running->subtype);
+        _prefs.putString("STABLE_VERSION", _version);
+        _prefs.end();
+        Serial.println("[OTA] firmware stable (UART)");
+        return;
+    }
+
+    // 如果当前分区状态为稳定，则无需处理
+    if (_status == PREF_OTA_STABLE)
+    {
+        _prefs.end();
+        Serial.println("[OTA] firmware stable");
+        return;
+    }
+
+    // 否则说明本次是OTA升级待验证，状态为PENDING
+    if (_status == PREF_OTA_NEW)
+    {
+        _status = PREF_OTA_PENDING;
+        _prefs.putInt("APP_STATUS", PREF_OTA_PENDING);
+    }
+
+    // 如果PENDING状态不超过3次重启，则仍然标记为PENDING，记录重启次数+1
+    int verifyTimes = _prefs.getInt("VERIFY_TIMES", 0);
+    if (verifyTimes < 3)
+    {
+        _prefs.putInt("VERIFY_TIMES", verifyTimes + 1);
+        _prefs.end();
+        Serial.printf("[OTA] firmware pending verification. Attempt %d times.\r\n", verifyTimes + 1);
+        return;
+    }
+
+    // PENDING超过3次重启，说明本次固件版本不稳定，状态为INVALID，回滚到上一个版本
+    _status = PREF_OTA_INVALID;
+
+    // 回滚重启
+    // ----如果记录有上次稳定版本，则回滚到上次稳定版本，否则找到下一个可用分区回滚
+    esp_partition_subtype_t lastStableSubtype =
+        (esp_partition_subtype_t)_prefs.getInt("STABLE_SUBTYPE", ESP_PARTITION_SUBTYPE_APP_FACTORY);
+    if (lastStableSubtype != ESP_PARTITION_SUBTYPE_APP_FACTORY)
+        _last = (esp_partition_t *)esp_partition_find_first(ESP_PARTITION_TYPE_APP, lastStableSubtype, NULL);
+    else
+        _last = (esp_partition_t *)esp_ota_get_next_update_partition(_running);
+    esp_ota_set_boot_partition(_last);
+
+    // ----NVS回到上次稳定版本的信息
+    _prefs.putString("VERSION", _prefs.getString("STABLE_VERSION", "unknown"));
+    _prefs.putInt("APP_STATUS", PREF_OTA_NEW);
+    _prefs.putInt("VERIFY_TIMES", 0);
+
+    // ----重启
+    for (int i = 5; i > 0; i--)
+    {
+        Serial.printf("[OTA] firmware unstable, rollback in %d s\r\n", i);
+        delay(1000);
+    }
+    esp_restart();
+}
+
+void OtaAssist::initService()
 {
     // 启动http server，等待PC端给出OTA指令
     _server.on("/", HTTP_GET, [this]() { handleRoot(); });
     _server.on("/update", HTTP_GET, [this]() { handleUpdate(); });
     _server.begin();
 
-    // 判断当前运行版本状态
-    esp_partition_t     *running, *alter;
-    esp_ota_img_states_t state;
-
-    running = (esp_partition_t *)esp_ota_get_running_partition();
-    alter   = (esp_partition_t *)esp_ota_get_next_update_partition(running);
-    esp_ota_get_state_partition(running, &state);
-
-    Serial.printf("[OTA] running in %s, version %s...", strSubtype(running->subtype), _version.c_str());
-    Serial.println(strImgState(state));
-
-    // 记录当前OTA数据到NVS，并确认是否需要回滚
-    if (checkRollback(running->subtype))
-    {
-        Serial.println("[OTA] firmware unstable, preparing rollback");
-        for (int i = 5; i > 0; i--)
-        {
-            Serial.printf("[OTA] firmware rollback in %d s", i);
-            delay(1000);
-        }
-        esp_restart();
-    }
-
     // 准备就绪
     Serial.println("[OTA] ready for next OTA");
 }
 
 void OtaAssist::loop() { _server.handleClient(); }
-
-void OtaAssist::setVersion(const String &ver) { _version = ver; }
 
 String OtaAssist::getVersion() const { return _version; }
 
@@ -78,30 +134,14 @@ void OtaAssist::handleUpdate()
 
     WiFiClient client;
 
-    httpUpdate.onProgress([&](int current, int total) { printProgressBar(current, total); });
+    httpUpdate.onProgress([&](int current, int total) { updateProgBar(current, total); });
+    httpUpdate.onEnd([&]() { updateWritePref(); });
+    httpUpdate.update(client, url);
 
-    t_httpUpdate_return ret = httpUpdate.update(client, url);
-
-    switch (ret)
-    {
-    case HTTP_UPDATE_FAILED:
-        Serial.printf("[OTA] Failed: %s\n", httpUpdate.getLastErrorString().c_str());
-        _server.send(500, "text/plain", "Update Failed");
-        break;
-
-    case HTTP_UPDATE_NO_UPDATES:
-        Serial.println("[OTA] No Updates");
-        _server.send(200, "text/plain", "No Update");
-        break;
-
-    case HTTP_UPDATE_OK:
-        Serial.println("[OTA] Update OK, Rebooting...");
-        // 不需要 send，update 成功后会自动重启
-        break;
-    }
+    return;
 }
 
-void OtaAssist::printProgressBar(size_t current, size_t total)
+void OtaAssist::updateProgBar(size_t current, size_t total)
 {
     const int barWidth = 40;
 
@@ -131,6 +171,17 @@ void OtaAssist::printProgressBar(size_t current, size_t total)
     Serial.println(formatSize(total));
 }
 
+void OtaAssist::updateWritePref()
+{
+    _prefs.begin("ota", false);
+    _prefs.putString("VERSION", _version);
+    _prefs.putInt("APP_STATUS", PREF_OTA_NEW);
+    _prefs.putInt("VERIFY_TIMES", 0);
+    _prefs.end();
+    _status = PREF_OTA_NEW;
+    Serial.println("[OTA] Update OK, Rebooting...");
+}
+
 String OtaAssist::formatSize(size_t bytes)
 {
     const char *units[]   = {"B", "kB", "MB"};
@@ -151,43 +202,44 @@ String OtaAssist::formatSize(size_t bytes)
 
 void OtaAssist::clearOtaData()
 {
-    prefs.begin("ota", false);
-    prefs.clear();
-    prefs.end();
+    _prefs.begin("ota", false);
+    _prefs.clear();
+    _prefs.end();
 }
 
 void OtaAssist::confirm()
 {
     if (_status == PREF_OTA_PENDING)
     {
-        prefs.begin("ota", false);
-        prefs.putInt("OTA_STATUS", PREF_OTA_STABLE);
+        _prefs.begin("ota", false);
+        _prefs.putInt("APP_STATUS", PREF_OTA_STABLE);
+        _prefs.putInt("VERIFY_TIMES", 0);
+        _prefs.putInt("STABLE_SUBTYPE", _running->subtype);
+        _prefs.putString("STABLE_VERSION", _version);
+        _prefs.end();
         _status = PREF_OTA_STABLE;
-        prefs.end();
         Serial.println("[OTA] firmware confirmed stable");
     }
 }
 
-bool OtaAssist::isStable() { return (_status == PREF_OTA_STABLE); }
+bool OtaAssist::isStable() { return (_status == PREF_OTA_STABLE && _status == PREF_UART_STABLE); }
 
-String OtaAssist::strImgState(esp_ota_img_states_t state)
+String OtaAssist::strStatus(int status)
 {
-    switch (state)
+    switch (status)
     {
-    case ESP_OTA_IMG_NEW:
-        return "ESP_OTA_IMG_NEW";
-    case ESP_OTA_IMG_PENDING_VERIFY:
-        return "ESP_OTA_IMG_PENDING_VERIFY";
-    case ESP_OTA_IMG_VALID:
-        return "ESP_OTA_IMG_VALID";
-    case ESP_OTA_IMG_INVALID:
-        return "ESP_OTA_IMG_INVALID";
-    case ESP_OTA_IMG_ABORTED:
-        return "ESP_OTA_IMG_ABORTED";
-    case ESP_OTA_IMG_UNDEFINED:
-        return "ESP_OTA_IMG_UNDEFINED";
+    case PREF_OTA_NEW:
+        return "PREF_OTA_NEW";
+    case PREF_OTA_PENDING:
+        return "PREF_OTA_PENDING";
+    case PREF_OTA_STABLE:
+        return "PREF_OTA_STABLE";
+    case PREF_OTA_INVALID:
+        return "PREF_OTA_INVALID";
+    case PREF_UART_STABLE:
+        return "PREF_UART_STABLE";
     default:
-        return "ESP_OTA_UNKNOWN";
+        return "PREF_OTA_UNKNOWN";
     }
 }
 
@@ -201,49 +253,9 @@ String OtaAssist::strSubtype(esp_partition_subtype_t subtype)
         return "OTA_0";
     case ESP_PARTITION_SUBTYPE_APP_OTA_1:
         return "OTA_1";
+    case ESP_PARTITION_SUBTYPE_APP_OTA_2:
+        return "OTA_2";
     default:
         return "UNKNOWN";
     }
-}
-
-bool OtaAssist::checkRollback(esp_partition_subtype_t subtype)
-{
-    prefs.begin("ota", false);
-
-    // 确认当前运行的分区与上次记录的是否一致，若不一致，则定义为首次运行，且记录本次分区
-    if (subtype != prefs.getInt("OTA_SUBTYPE", ESP_PARTITION_SUBTYPE_APP_FACTORY))
-    {
-        Serial.println("[OTA] new firmware");
-        _status = PREF_OTA_NEW;
-        prefs.putInt("OTA_SUBTYPE", subtype);
-    }
-    // 若一致，则读取当前OTA状态（首次运行/待确认/稳定），用_status变量记录
-    else
-    {
-        _status = prefs.getInt("OTA_STATUS", PREF_OTA_NEW);
-    }
-
-    // 根据当前OTA状态，决定如何处理本次运行
-    switch (_status)
-    {
-    // 如果是第一次运行，则本次定义为Pending
-    case PREF_OTA_NEW:
-        prefs.putInt("OTA_STATUS", PREF_OTA_PENDING);
-        _status = PREF_OTA_PENDING;
-        Serial.println("[OTA] firmware pending for verification");
-        break;
-
-    // 如果本来已经是Pending状态，由重启运行到这里，说明不稳定，需要回滚
-    case PREF_OTA_PENDING:
-        prefs.clear();
-        prefs.end();
-        return true;
-
-    // 如果已经确认为Stable，则继续运行
-    default: // PREF_OTA_STABLE
-        Serial.println("[OTA] firmware stable");
-    }
-
-    prefs.end();
-    return false;
 }
