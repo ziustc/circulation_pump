@@ -113,7 +113,7 @@ void templateOfSetup()
     // ota.clearOtaData();
     ota.stableCheck();
 
-    // logger初始化
+    // Log初始化
     ExtLogger::instance().enableSerial();
     ExtLogger::instance().begin();
     XLOG("System", "ExtLogger initialized.");
@@ -131,7 +131,7 @@ void templateOfSetup()
     }
     XLOG("WiFi", "WIFI connected. IP = %s, Hostname = %s", WiFi.localIP().toString().c_str(), WiFi.getHostname());
 
-    // 准备UDP日志服务器
+    // LOG准备其他日志通道
     ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
     ExtLogger::instance().enableTelnet();
 

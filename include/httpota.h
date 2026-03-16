@@ -59,7 +59,7 @@ private:
     void          handleRoot();
     void          handleUpdate();
     void          updateProgBar(size_t current, size_t total);
-    void          updateWritePref();
+    void          otaOnEnd();
     static String formatSize(size_t bytes);
 
     // 以下为检查OTA版本状态和回滚的函数

@@ -1,6 +1,7 @@
 #include "httpota.h"
 #include <esp_ota_ops.h>
 #include <math.h>
+#include "extlogger.h"
 
 #define PREF_OTA_NEW     1
 #define PREF_OTA_PENDING 2
@@ -25,6 +26,8 @@ OtaAssist::OtaAssist(uint16_t port)
 
 void OtaAssist::stableCheck()
 {
+    // 本函数在启动最前面，还没有logger，只能用串口输出日志
+
     esp_ota_img_states_t state;
 
     _running = (esp_partition_t *)esp_ota_get_running_partition();
@@ -106,7 +109,7 @@ void OtaAssist::initService()
     _server.begin();
 
     // 准备就绪
-    Serial.println("[OTA] ready for next OTA");
+    XLOG("OTA", "ready for next OTA");
 }
 
 void OtaAssist::loop() { _server.handleClient(); }
@@ -129,13 +132,12 @@ void OtaAssist::handleUpdate()
 
     String url = _server.arg("url");
 
-    Serial.print("[OTA] downloading from: ");
-    Serial.println(url);
+    XLOG("OTA", " downloading from: %s", url.c_str());
 
     WiFiClient client;
 
     httpUpdate.onProgress([&](int current, int total) { updateProgBar(current, total); });
-    httpUpdate.onEnd([&]() { updateWritePref(); });
+    // httpUpdate.onEnd([&]() { otaOnEnd(); });
     httpUpdate.update(client, url);
 
     return;
@@ -148,6 +150,7 @@ void OtaAssist::updateProgBar(size_t current, size_t total)
     float progress = (float)current / total;
     int   pos      = barWidth * progress;
 
+    // 高频率更新进度条，避免过多日志输出，仅用串口
     Serial.print("[");
 
     for (int i = 0; i < barWidth; i++)
@@ -169,9 +172,12 @@ void OtaAssist::updateProgBar(size_t current, size_t total)
     Serial.print(formatSize(current));
     Serial.print(" / ");
     Serial.println(formatSize(total));
+
+    // 由于结束时还没来得及完成写入状态等工作就被重启了，所以在这里直接调用写入状态函数，确保NVS信息正确更新
+    if (current == total) otaOnEnd();
 }
 
-void OtaAssist::updateWritePref()
+void OtaAssist::otaOnEnd()
 {
     _prefs.begin("ota", false);
     _prefs.putString("VERSION", _version);
@@ -179,7 +185,7 @@ void OtaAssist::updateWritePref()
     _prefs.putInt("VERIFY_TIMES", 0);
     _prefs.end();
     _status = PREF_OTA_NEW;
-    Serial.println("[OTA] Update OK, Rebooting...");
+    XLOG("OTA", "Update finished, Rebooting...");
 }
 
 String OtaAssist::formatSize(size_t bytes)
@@ -218,7 +224,7 @@ void OtaAssist::confirm()
         _prefs.putString("STABLE_VERSION", _version);
         _prefs.end();
         _status = PREF_OTA_STABLE;
-        Serial.println("[OTA] firmware confirmed stable");
+        XLOG("OTA", "firmware confirmed stable");
     }
 }
 
