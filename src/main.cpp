@@ -3,9 +3,9 @@
 #include <esp_sntp.h>
 #include <U8g2lib.h>
 #include "httpota.h"
-#include "logger.h"
-#include "ssid.h"
+#include "extlogger.h"
 
+#include "ssid.h"
 #include "screen.h"
 #include "panel.h"
 #include "pattern.h"
@@ -31,63 +31,11 @@ Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnStart};
 PumpCtrlUnit ptu(scr, PUMP_PIN, TEMP_PIN, FLOW_PIN);
 OtaAssist    ota(80);
 
+void templateOfSetup();
+void timeCalibNotice(struct timeval *tv);
+void initPin();
 void initButton();
 void reportSettings(Settings ctrlSet);
-void timeCalibNotice(struct timeval *tv);
-
-/**
- * 这是一套基础配置的模板，配置串口，连接WiFi，启动OTA服务，准备日志服务器，并同步时间
- * 顺序和内容尽量不要变，以免启动即重启无法OTA重刷
- * 需要如下依赖：
-#include <WiFi.h>
-#include <esp_sntp.h>
-#include "httpota.h"
-#include "Logger.h"
-#include "ssid.h"
-OtaAssist ota(80);
-void timeCalibNotice(struct timeval *tv) { Serial.println("sntp time calibrated."); }
- */
-void templateOfSetup()
-{
-    // 初始化串口
-    Serial.begin(115200);
-    Serial.println("Reboot");
-    // 若是OTA升级，需要注释掉本条
-    // ota.clearOtaData();
-    ota.stableCheck();
-
-    // 连接 WiFi
-    Serial.print("WIFI Connecting...");
-    WiFi.setHostname(HOSTNAME);
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(SSID, PASSWORD);
-    if (WiFi.waitForConnectResult() != WL_CONNECTED)
-    {
-        Serial.println("Connection Failed! Rebooting...");
-        delay(1000);
-        ESP.restart();
-    }
-    Serial.print("success. IP = ");
-    Serial.print(WiFi.localIP());
-    Serial.print(", Hostname = ");
-    Serial.println(WiFi.getHostname());
-
-    // 启动OTA服务
-    ota.initService();
-
-    // 准备日志服务器
-    logger.begin();
-    logger.println("Logger initialized.");
-
-    // 同步真实时间
-    configTime(8 * 3600, 0, NTP_SERVER);
-    sntp_set_time_sync_notification_cb(timeCalibNotice);
-}
-
-/**
- * 时间校准回调函数，与前面templateOfSetup()函数共用。
- */
-void timeCalibNotice(struct timeval *tv) { logger.println("sntp time calibrated."); }
 
 void setup(void)
 {
@@ -96,15 +44,16 @@ void setup(void)
 
     // 初始化引脚
     initPin();
+    XLOG("System", "Pins initialized.");
 
     // 准备显示屏
     scr.init();
     scr.setExportSettings_cb(reportSettings);
-    Serial.println("Screen initialized.");
+    XLOG("System", "Screen initialized.");
 
     // 按键初始化
     initButton();
-    Serial.println("Button initialized.");
+    XLOG("System", "Buttons initialized.");
 }
 
 void loop(void)
@@ -117,9 +66,6 @@ void loop(void)
 
     // OTA监控需要频繁调用
     ota.loop();
-
-    // 日志服务器监控
-    logger.loop();
 
     // 泵控制单元
     ptu.ctrlTick();
@@ -141,9 +87,70 @@ void loop(void)
     unsigned long now = millis();
     if (now - lastMillis >= 1000)
     {
-        logger.printf("Running... uptime = %lus, fps = %.2f\r\n", now / 1000, fps);
+        XLOG("System", "Running... uptime = %lus, FPS = %.2f", now / 1000, fps);
         lastMillis = now;
     }
+}
+
+/**
+ * 这是一套基础配置的模板，配置串口，连接WiFi，启动OTA服务，准备日志服务器，并同步时间
+ * 顺序和内容尽量不要变，以免启动即重启无法OTA重刷
+ * 需要如下依赖：
+   #include <WiFi.h>
+   #include <esp_sntp.h>
+   #include "httpota.h"
+   #include "Logger.h"
+   #include "ssid.h"
+   OtaAssist ota(80);
+   void timeCalibNotice(struct timeval *tv) { Serial.println("sntp time calibrated."); }
+ */
+void templateOfSetup()
+{
+    // 初始化串口
+    Serial.begin(115200);
+    Serial.println("Reboot");
+    // 若是OTA升级，需要注释掉本条
+    // ota.clearOtaData();
+    ota.stableCheck();
+
+    // logger初始化
+    ExtLogger::instance().enableSerial();
+    ExtLogger::instance().begin();
+    XLOG("System", "ExtLogger initialized.");
+
+    // 连接 WiFi
+    XLOG("WiFi", "Connecting to WiFi...");
+    WiFi.setHostname(HOSTNAME);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(SSID, PASSWORD);
+    if (WiFi.waitForConnectResult() != WL_CONNECTED)
+    {
+        XLOG("WiFi", "Connection Failed! Rebooting...");
+        delay(1000);
+        ESP.restart();
+    }
+    XLOG("WiFi", "WIFI connected. IP = %s, Hostname = %s", WiFi.localIP().toString().c_str(), WiFi.getHostname());
+
+    // 准备UDP日志服务器
+    ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
+    ExtLogger::instance().enableTelnet();
+
+    // 启动OTA服务
+    ota.initService();
+    XLOG("System", "OTA service initialized.");
+
+    // 同步真实时间
+    configTime(8 * 3600, 0, NTP_SERVER);
+    sntp_set_time_sync_notification_cb(timeCalibNotice);
+}
+
+/**
+ * 时间校准回调函数，与前面templateOfSetup()函数共用。
+ */
+void timeCalibNotice(struct timeval *tv)
+{
+    // 时间同步完成
+    XLOG("System", "sntp time calibrated.");
 }
 
 void initPin()
@@ -181,5 +188,5 @@ void initButton()
 void reportSettings(Settings set)
 {
     // 这里应使用MQTT将数据发送出去
-    logger.println("report");
+    XLOG("System", "Reporting settings...");
 }
