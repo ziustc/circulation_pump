@@ -4,6 +4,7 @@
 #include <U8g2lib.h>
 #include "httpota.h"
 #include "extlogger.h"
+#include "mqtt.h"
 
 #include "ssid.h"
 #include "screen.h"
@@ -25,11 +26,13 @@ using namespace std;
 
 long lastMillis = 0;
 
+OtaAssist       ota(80);
+PumpMqttManager mqtt;
+
 Screen       scr;
 Button       btnUp, btnDown, btnOK, btnShift, btnStart;
 Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnStart};
 PumpCtrlUnit ptu(scr, PUMP_PIN, TEMP_PIN, FLOW_PIN);
-OtaAssist    ota(80);
 
 void templateOfSetup();
 void timeCalibNotice(struct timeval *tv);
@@ -54,6 +57,9 @@ void setup(void)
     // 按键初始化
     initButton();
     XLOG("System", "Buttons initialized.");
+
+    // 初始化MQTT
+    mqtt.begin();
 }
 
 void loop(void)
@@ -66,6 +72,9 @@ void loop(void)
 
     // OTA监控需要频繁调用
     ota.loop();
+
+    // MQTT
+    mqtt.loop();
 
     // 泵控制单元
     ptu.ctrlTick();
@@ -87,7 +96,8 @@ void loop(void)
     unsigned long now = millis();
     if (now - lastMillis >= 1000)
     {
-        XLOG("System", "Running... uptime = %lus, FPS = %.2f", now / 1000, fps);
+        // mqtt.sendMsg("homeassistant/pump/config", "信息");
+        XLOG("System", "正常运行中... uptime = %lus, FPS = %.2f", now / 1000, fps);
         lastMillis = now;
     }
 }
@@ -133,11 +143,10 @@ void templateOfSetup()
 
     // LOG准备其他日志通道
     ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
-    ExtLogger::instance().enableTelnet();
+    // ExtLogger::instance().enableTelnet();
 
     // 启动OTA服务
     ota.initService();
-    XLOG("System", "OTA service initialized.");
 
     // 同步真实时间
     configTime(8 * 3600, 0, NTP_SERVER);
@@ -189,4 +198,5 @@ void reportSettings(Settings set)
 {
     // 这里应使用MQTT将数据发送出去
     XLOG("System", "Reporting settings...");
+    mqtt.sendDiscoveries();
 }

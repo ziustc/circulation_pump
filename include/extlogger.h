@@ -5,7 +5,7 @@
 #include <WiFiUdp.h>
 
 #define LOGGER_BUFFER_SIZE 1024
-#define LOGGER_MAX_LINE    256
+#define LOGGER_MAX_LINE    512
 
 class ExtLogger
 {

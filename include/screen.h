@@ -9,14 +9,14 @@
 
 struct Settings
 {
-    int startHour[3];
-    int startMinute[3];
-    int endHour[3];
-    int endMinute[3];
-    int waterMinSec;
-    int waterMaxSec;
-    int pumpOnDuration;
-    int demandTemp;
+    int startHour[3]   = {-1, -1, -1};
+    int startMinute[3] = {-1, -1, -1};
+    int endHour[3]     = {-1, -1, -1};
+    int endMinute[3]   = {-1, -1, -1};
+    int waterMinSec    = -1;
+    int waterMaxSec    = -1;
+    int pumpOnDuration = -1;
+    int demandTemp     = -1;
 };
 
 class Screen
