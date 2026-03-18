@@ -39,8 +39,8 @@ void Screen::init()
     // panel排版
     layout();
 
-    // 数值初始化
-    initIndicatorValue();
+    // 数值初始化（取消，由pcu控制）
+    // initIndicatorValue();
 }
 
 void Screen::layout()
@@ -180,11 +180,11 @@ void Screen::updateTempC(int temp)
 
 void Screen::updateFlow(int flow) { flowInd.setFlow(flow); }
 
-void Screen::setExportSettings_cb(function<void(Settings)> cb) { exportSettings_cb = cb; }
+void Screen::setExportSettings_cb(function<void(Settings_t)> cb) { exportSettings_cb = cb; }
 
-Settings Screen::wrapupSettings()
+Settings_t Screen::wrapupSettings()
 {
-    Settings      ret;
+    Settings_t    ret;
     TimeSettings  timeSettings  = timePanel.getSettings();
     WaterSettings waterSettings = waterPanel.getSettings();
     int           tempSettings  = tempPanel.getSettings();
@@ -204,7 +204,7 @@ Settings Screen::wrapupSettings()
     return ret;
 }
 
-void Screen::importSettings(Settings set)
+void Screen::importSettings(Settings_t set)
 {
     TimeSettings  timeSettings;
     WaterSettings waterSettings;
@@ -226,6 +226,8 @@ void Screen::importSettings(Settings set)
     waterPanel.setData(waterSettings);
     tempPanel.setData(tempSettings);
 }
+
+Settings_t Screen::exportSettings() { return wrapupSettings(); }
 
 float Screen::draw()
 {

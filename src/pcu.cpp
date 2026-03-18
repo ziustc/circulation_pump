@@ -1,4 +1,9 @@
 #include "pcu.h"
+#include "common.h"
+
+#define SENSOR_FREQ       500            // 500ms读取一次传感器
+#define MQTT_STATE_FREQ   10 * 1000      // 10s发送一次状态到HASS
+#define MQTT_SETTING_FREQ 10 * 60 * 1000 // 10分钟发送一次Discovery
 
 /*************************************************************/
 /*                        FlowSensor                         */
@@ -124,8 +129,9 @@ void TempSensor::sensorTick()
 /*                       PumpCtrlUnit                        */
 /*************************************************************/
 
-PumpCtrlUnit::PumpCtrlUnit(Screen &scr, int pumpPin, int tempPin, int flowPin)
-: screen(scr)
+PumpCtrlUnit::PumpCtrlUnit(Screen &scr, PumpMqttManager &mqtt, int pumpPin, int tempPin, int flowPin)
+: _screen(scr)
+, _mqtt(mqtt)
 , flowSensor(flowPin)
 , tempSensor(tempPin)
 , pumpPinNo(pumpPin)
@@ -134,31 +140,116 @@ PumpCtrlUnit::PumpCtrlUnit(Screen &scr, int pumpPin, int tempPin, int flowPin)
 {
 }
 
-void PumpCtrlUnit::ctrlTick()
+void PumpCtrlUnit::init()
+{
+    // 确保初始状态为关闭
+    switchPump(false);
+
+    // 初始化设置参数
+    for (int i = 0; i < 3; i++)
+    {
+        _settings.startHour[i]   = 0;
+        _settings.startMinute[i] = 0;
+        _settings.endHour[i]     = 0;
+        _settings.endMinute[i]   = 0;
+    }
+    _settings.waterMinSec    = 2;
+    _settings.waterMaxSec    = 6;
+    _settings.pumpOnDuration = 4;
+    _settings.demandTemp     = 35;
+
+    _screen.importSettings(_settings);
+
+    // 发送一次discovery给HASS以创建实体，并发送初始化设置
+    _mqtt.sendDiscoveries();
+    _mqtt.sendSettings(_settings);
+}
+
+void PumpCtrlUnit::loop()
 {
     unsigned long now = millis();
 
     tempSensor.sensorTick();
 
-    if (now - lastMillis > 500)
+    // 每500ms读取一次传感器和时间，并刷新显示屏
+    if (now - lastMillis_sensor > SENSOR_FREQ)
     {
-        lastMillis = now;
+        lastMillis_sensor = now;
         readTemperature();
         readFlow();
         readTime();
 
         // 刷新显示屏示数
-        screen.updateTempC(tempC);
-        screen.updateFlow(flow);
-        screen.updateTime(realTime.tm_hour, realTime.tm_min, realTime.tm_sec);
+        _screen.updateTempC(_state.tempC);
+        _screen.updateFlow(_state.flow);
+        _screen.updateTime(realTime.tm_hour, realTime.tm_min, realTime.tm_sec);
+    }
+
+    // 每10秒发送一次状态到HASS
+    if (now - lastMillis_mqtt > MQTT_STATE_FREQ)
+    {
+        lastMillis_mqtt = now;
+        _mqtt.sendSettings(_settings);
+        _mqtt.sendState(_state);
+    }
+
+    // 每10分钟发送一次discovery以防HASS重启丢失实体
+    if (now - lastMillis_discovery > MQTT_SETTING_FREQ)
+    {
+        lastMillis_discovery = now;
+        _mqtt.sendDiscoveries();
     }
 }
 
-void PumpCtrlUnit::switchPump(bool pumpOn) { }
+Settings_t PumpCtrlUnit::exportSettings()
+{
+    _settings = _screen.exportSettings();
+    return _settings;
+}
 
-void PumpCtrlUnit::readTemperature() { tempC = tempSensor.getTempC(); }
+void PumpCtrlUnit::onMqttUpdate(Settings_t set)
+{
+    // 更新设置参数
+    for (int i = 0; i < 3; i++)
+    {
+        if (set.startHour[i] >= 0) _settings.startHour[i] = set.startHour[i];
+        if (set.startMinute[i] >= 0) _settings.startMinute[i] = set.startMinute[i];
+        if (set.endHour[i] >= 0) _settings.endHour[i] = set.endHour[i];
+        if (set.endMinute[i] >= 0) _settings.endMinute[i] = set.endMinute[i];
+    }
+    if (set.waterMinSec >= 0) _settings.waterMinSec = set.waterMinSec;
+    if (set.waterMaxSec >= 0) _settings.waterMaxSec = set.waterMaxSec;
+    if (set.pumpOnDuration >= 0) _settings.pumpOnDuration = set.pumpOnDuration;
+    if (set.demandTemp >= 0) _settings.demandTemp = set.demandTemp;
 
-void PumpCtrlUnit::readFlow() { flow = flowSensor.getFlow(); }
+    // 更新屏幕显示并反馈确认（有可能因为输入超出范围而被修正）
+    _screen.importSettings(_settings);
+    _settings = _screen.exportSettings();
+
+    // 回传HASS确认
+    _mqtt.sendSettings(_settings);
+}
+
+void PumpCtrlUnit::onScreenUpdate(Settings_t set)
+{
+    _settings = set;
+    _mqtt.sendSettings(_settings);
+}
+
+void PumpCtrlUnit::onMqttPumpOn() { switchPump(true); }
+
+void PumpCtrlUnit::onButtonPumpOn() { switchPump(!_state.pumpOn); }
+
+void PumpCtrlUnit::switchPump(bool pumpOn)
+{
+    _state.pumpOn = pumpOn;
+    _screen.updatePumpOn(pumpOn);
+    _mqtt.sendState(_state);
+}
+
+void PumpCtrlUnit::readTemperature() { _state.tempC = tempSensor.getTempC(); }
+
+void PumpCtrlUnit::readFlow() { _state.flow = flowSensor.getFlow(); }
 
 void PumpCtrlUnit::readTime()
 {

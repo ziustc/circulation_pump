@@ -280,6 +280,7 @@ void WaterCtrl::setData(WaterSettings set)
     inputFields[0].setValue(set.minSec);
     inputFields[1].setValue(set.maxSec);
     inputFields[2].setValue(set.pumpOnDuration);
+    inputHandler();
 }
 
 void WaterCtrl::inputHandler()
@@ -340,9 +341,18 @@ void TempCtrl::setData(int set)
 {
     vector<InputDigit> &inputFields = getInputFields();
     inputFields[0].setValue(set);
+    inputHandler();
 }
 
-void TempCtrl::inputHandler() { }
+void TempCtrl::inputHandler()
+{
+    vector<InputDigit> &inputFields = getInputFields();
+    if (inputFields[0].getValue() < 25)
+        inputFields[0].setValue(25);
+
+    else if (inputFields[0].getValue() > 45)
+        inputFields[0].setValue(45);
+}
 
 /*************************************************************/
 /*                         TimeCtrl                          */
@@ -454,6 +464,7 @@ void TimeCtrl::setData(TimeSettings set)
         inputFields[i * 4 + 2].setValue(set.endHour[i]);
         inputFields[i * 4 + 3].setValue(set.endMinute[i]);
     }
+    inputHandler();
 }
 
 void TimeCtrl::inputHandler()

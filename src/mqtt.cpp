@@ -13,6 +13,10 @@
 #define MQTT_DEMAND_TEMP "pump_demandt"
 #define MQTT_PUMP_ON     "pump_on"
 
+#define MQTT_STATE_WATER "pump_s_wt"
+#define MQTT_STATE_FLOW  "pump_s_flow"
+#define MQTT_STATE_ON    "pump_s_on"
+
 // 静态成员变量定义
 PumpMqttManager *PumpMqttManager::instance = nullptr;
 
@@ -23,7 +27,7 @@ PumpMqttManager::PumpMqttManager()
     instance = this;
 }
 
-void PumpMqttManager::begin()
+void PumpMqttManager::init()
 {
     _client.setServer(MQTT_SERVER, MQTT_PORT);
     _client.setCallback(mqtt_received);
@@ -64,13 +68,7 @@ void PumpMqttManager::sendMsg(const char *topic, const char *payload)
 {
     if (_client.connected())
     {
-        if (_client.publish(topic, payload))
-        {
-            XLOG("MQTT.topic", topic);
-            XLOG("MQTT.payload", payload);
-        }
-        else
-            XLOG("MQTT", "send failure");
+        if (!_client.publish(topic, payload)) XLOG("MQTT", "send message failure! topic: %s", topic);
     }
     return;
 }
@@ -82,9 +80,6 @@ void PumpMqttManager::sendDiscoveries()
 
     for (int i = 0; i < 3; i++)
     {
-        XLOG("MQTT.topic", topic.c_str());
-        XLOG("MQTT.payload", payload.c_str());
-
         topic   = String("homeassistant/text/") + MQTT_START_TIME + String(i + 1) + "/config";
         payload = timeDiscoveryPayload("保温起始时间" + String(i + 1), MQTT_START_TIME + String(i + 1));
         if (!_client.publish(topic.c_str(), payload.c_str())) XLOG("MQTT", "%s failed to send", topic.c_str());
@@ -113,11 +108,28 @@ void PumpMqttManager::sendDiscoveries()
     topic   = String("homeassistant/button/") + MQTT_PUMP_ON + "/config";
     payload = buttonDiscoveryPayload("启动循环泵", MQTT_PUMP_ON);
     if (_client.publish(topic.c_str(), payload.c_str())) XLOG("MQTT", topic.c_str());
+
+    topic   = String("homeassistant/sensor/") + MQTT_STATE_WATER + "/config";
+    payload = waterDiscoveryPayload("当前水温", MQTT_STATE_WATER);
+    if (!_client.publish(topic.c_str(), payload.c_str())) XLOG("MQTT", "%s failed to send", topic.c_str());
+
+    topic   = String("homeassistant/sensor/") + MQTT_STATE_FLOW + "/config";
+    payload = flowDiscoveryPayload("流量", MQTT_STATE_FLOW);
+    if (!_client.publish(topic.c_str(), payload.c_str())) XLOG("MQTT", "%s failed to send", topic.c_str());
+
+    topic   = String("homeassistant/binary_sensor/") + MQTT_STATE_ON + "/config";
+    payload = pumpOnDiscoveryPayload("运行状态", MQTT_STATE_ON);
+    if (!_client.publish(topic.c_str(), payload.c_str())) XLOG("MQTT", "%s failed to send", topic.c_str());
 }
 
-void PumpMqttManager::sendState(Settings &pumpSettings)
+void PumpMqttManager::sendSettings(Settings_t &pumpSettings)
 {
-    _client.publish("hass/pump/s", statePayload(pumpSettings).c_str());
+    _client.publish("hass/pump/s", settingsPayload(pumpSettings).c_str());
+}
+
+void PumpMqttManager::sendState(State_t &pumpState)
+{
+    _client.publish("hass/pump_s/s", statePayload(pumpState).c_str());
 }
 
 void PumpMqttManager::mqtt_received(const char *topic, const uint8_t *payload, unsigned int len)
@@ -129,10 +141,10 @@ void PumpMqttManager::handleCommand(const char *topic, const uint8_t *payload, u
 {
     JsonDocument         doc;
     DeserializationError error = deserializeJson(doc, payload);
-    Settings             set;
+    Settings_t           set;
 
-    XLOG("MQTT.received.topic", topic);
-    XLOG("MQTT.received.payload", (char *)payload);
+    // XLOG("MQTT.received.topic", topic);
+    // XLOG("MQTT.received.payload", (char *)payload);
 
     if (error) return;
 
@@ -149,26 +161,26 @@ void PumpMqttManager::handleCommand(const char *topic, const uint8_t *payload, u
     }
 
     // 如果收到参数
-    if (strncmp(cmd, MQTT_START_TIME, sizeof(MQTT_START_TIME)) == 0)
+    if (strncmp(cmd, MQTT_START_TIME, strlen(MQTT_START_TIME)) == 0)
     {
         int id;
         int h, m;
         sscanf(cmd, (String(MQTT_START_TIME) + "%d").c_str(), &id);
         sscanf(val, "%d:%d", &h, &m);
 
-        set.startHour[id]   = h;
-        set.startMinute[id] = m;
+        set.startHour[id - 1]   = h;
+        set.startMinute[id - 1] = m;
     }
 
-    else if (strncmp(cmd, MQTT_END_TIME, sizeof(MQTT_END_TIME)) == 0)
+    else if (strncmp(cmd, MQTT_END_TIME, strlen(MQTT_END_TIME)) == 0)
     {
         int id;
         int h, m;
         sscanf(cmd, (String(MQTT_END_TIME) + "%d").c_str(), &id);
         sscanf(val, "%d:%d", &h, &m);
 
-        set.endHour[id]   = h;
-        set.endMinute[id] = m;
+        set.endHour[id - 1]   = h;
+        set.endMinute[id - 1] = m;
     }
 
     else if (strcmp(cmd, MQTT_WATER_MIN) == 0)
@@ -190,25 +202,14 @@ void PumpMqttManager::handleCommand(const char *topic, const uint8_t *payload, u
     if (_onMqttMsg_cb) _onMqttMsg_cb(set);
 }
 
-// String PumpMqttManager::timeDiscoveryPayload(String entityName, String entityId)
-// {
-//     JsonDocument doc = DiscoveryPayloadTemplate(entityName, entityId);
-//     doc["val_tpl"]   = "{{ value_json." + entityId + " + ':00' }}";
-//     doc["cmd_tpl"]   = "{\"cmd\":\"" + entityId + "\",\"val\":\"{{ value[:5] }}\"}";
-
-//     String payloadStr;
-//     serializeJson(doc, payloadStr);
-//     return payloadStr;
-// }
-
 String PumpMqttManager::timeDiscoveryPayload(String entityName, String entityId)
 {
     JsonDocument doc = DiscoveryPayloadTemplate(entityName, entityId);
+    doc["val_tpl"]   = String("{{ value_json.") + entityId + " }}";
+    doc["cmd_tpl"]   = String("{\"cmd\":\"") + entityId + "\",\"val\":\"{{ value }}\"}";
     doc["pattern"]   = "^([01]?[0-9]|2[0-3]):[0-5][0-9]$";
     doc["mode"]      = "text";
     doc["icon"]      = "mdi:clock-outline";
-    doc["val_tpl"]   = "{{ value_json." + entityId + " }}";
-    doc["cmd_tpl"]   = "{\"cmd\":\"" + entityId + "\",\"val\":\"{{ value }}\"}";
 
     String payloadStr;
     serializeJson(doc, payloadStr);
@@ -220,7 +221,7 @@ String PumpMqttManager::numberDiscoveryPayload(
 {
     JsonDocument doc    = DiscoveryPayloadTemplate(entityName, entityId);
     doc["val_tpl"]      = String("{{ value_json.") + entityId + " }}";
-    doc["cmd_tpl"]      = String("{\"cmd\":\"") + entityId + "\",\"val\":\"{{value}}\"}";
+    doc["cmd_tpl"]      = String("{\"cmd\":\"") + entityId + "\",\"val\":\"{{ value }}\"}";
     doc["min"]          = min;
     doc["max"]          = max;
     doc["step"]         = step;
@@ -238,6 +239,52 @@ String PumpMqttManager::buttonDiscoveryPayload(String entityName, String entityI
 
     doc.remove("stat_t");
     doc["cmd_tpl"] = String("{\"cmd\":\"") + entityId + "\",\"val\":\"ON\"}";
+
+    String payloadStr;
+    serializeJson(doc, payloadStr);
+    return payloadStr;
+}
+
+String PumpMqttManager::waterDiscoveryPayload(String entityName, String entityId)
+{
+    JsonDocument doc = DiscoveryPayloadTemplate(entityName, entityId);
+
+    doc.remove("cmd_t");
+    doc["stat_t"]       = "hass/pump_s/s";
+    doc["val_tpl"]      = String("{{ value_json.") + entityId + " }}";
+    doc["unit_of_meas"] = "°C";
+    doc["dev_cla"]      = "temperature";
+    doc["stat_cla"]     = "measurement";
+
+    String payloadStr;
+    serializeJson(doc, payloadStr);
+    return payloadStr;
+}
+
+String PumpMqttManager::flowDiscoveryPayload(String entityName, String entityId)
+{
+    JsonDocument doc = DiscoveryPayloadTemplate(entityName, entityId);
+
+    doc.remove("cmd_t");
+    doc["stat_t"]       = "hass/pump_s/s";
+    doc["val_tpl"]      = String("{{ value_json.") + entityId + " | float(1) }}";
+    doc["unit_of_meas"] = "L/min";
+    doc["ic"]           = "mdi:waves";
+    doc["stat_cla"]     = "measurement";
+
+    String payloadStr;
+    serializeJson(doc, payloadStr);
+    return payloadStr;
+}
+
+String PumpMqttManager::pumpOnDiscoveryPayload(String entityName, String entityId)
+{
+    JsonDocument doc = DiscoveryPayloadTemplate(entityName, entityId);
+
+    doc.remove("cmd_t");
+    doc["stat_t"]  = "hass/pump_s/s";
+    doc["val_tpl"] = String("{{ 'ON' if value_json.") + entityId + " else 'OFF' }}";
+    doc["dev_cla"] = "running";
 
     String payloadStr;
     serializeJson(doc, payloadStr);
@@ -264,7 +311,7 @@ JsonDocument PumpMqttManager::DiscoveryPayloadTemplate(String entityName, String
     return doc;
 }
 
-String PumpMqttManager::statePayload(Settings &pumpSettings)
+String PumpMqttManager::settingsPayload(Settings_t &pumpSettings)
 {
     JsonDocument doc;
     char         buf[6];
@@ -279,6 +326,19 @@ String PumpMqttManager::statePayload(Settings &pumpSettings)
     doc[MQTT_WATER_MAX]   = pumpSettings.waterMaxSec;
     doc[MQTT_DURATION]    = pumpSettings.pumpOnDuration;
     doc[MQTT_DEMAND_TEMP] = pumpSettings.demandTemp;
+
+    String payloadStr;
+    serializeJson(doc, payloadStr);
+    return payloadStr;
+}
+
+String PumpMqttManager::statePayload(State_t &pumpState)
+{
+    JsonDocument doc;
+
+    doc[MQTT_STATE_WATER] = pumpState.tempC;
+    doc[MQTT_STATE_FLOW]  = pumpState.flow;
+    doc[MQTT_STATE_ON]    = pumpState.pumpOn;
 
     String payloadStr;
     serializeJson(doc, payloadStr);

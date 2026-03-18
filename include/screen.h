@@ -6,37 +6,27 @@
 #include <U8g2lib.h>
 #include "pattern.h"
 #include "panel.h"
-
-struct Settings
-{
-    int startHour[3]   = {-1, -1, -1};
-    int startMinute[3] = {-1, -1, -1};
-    int endHour[3]     = {-1, -1, -1};
-    int endMinute[3]   = {-1, -1, -1};
-    int waterMinSec    = -1;
-    int waterMaxSec    = -1;
-    int pumpOnDuration = -1;
-    int demandTemp     = -1;
-};
+#include "common.h"
 
 class Screen
 {
 public:
     Screen();
-    void  init();
-    void  onShift();
-    void  onOK();
-    void  onUp();
-    void  onDown();
-    void  onStart();
-    float draw();
-    void  updateTime(int h, int m, int s);
-    void  updateSignal(int strength);
-    void  updatePumpOn(bool isOn);
-    void  updateTempC(int temp);
-    void  updateFlow(int volume);
-    void  importSettings(Settings set);
-    void  setExportSettings_cb(function<void(Settings)> cb);
+    void       init();
+    void       onShift();
+    void       onOK();
+    void       onUp();
+    void       onDown();
+    void       onStart();
+    float      draw();
+    void       updateTime(int h, int m, int s);
+    void       updateSignal(int strength);
+    void       updatePumpOn(bool isOn);
+    void       updateTempC(int temp);
+    void       updateFlow(int volume);
+    void       importSettings(Settings_t set);
+    Settings_t exportSettings();
+    void       setExportSettings_cb(function<void(Settings_t)> cb);
 
 private:
     U8G2_SH1108_128X160_F_4W_HW_SPI *u8g2[4];
@@ -52,15 +42,15 @@ private:
     RealtimeIndicator realtimeInd;
     FPSIndicator      fpsInd;
 
-    vector<CtrlPanel *>      ctrlPanels;
-    vector<Panel *>          panels[4];
-    int                      curPanel = -1;
-    int                      curTime;
-    int                      duration;
-    function<void(Settings)> exportSettings_cb;
-    void                     layout();
-    void                     initIndicatorValue();
-    Settings                 wrapupSettings();
+    vector<CtrlPanel *>        ctrlPanels;
+    vector<Panel *>            panels[4];
+    int                        curPanel = -1;
+    int                        curTime;
+    int                        duration;
+    function<void(Settings_t)> exportSettings_cb;
+    void                       layout();
+    void                       initIndicatorValue();
+    Settings_t                 wrapupSettings();
 };
 
 #endif // SCREEN_H

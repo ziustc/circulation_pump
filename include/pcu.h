@@ -6,6 +6,7 @@
 #include <esp_adc_cal.h>
 #include <deque>
 #include <screen.h>
+#include "mqtt.h"
 
 using namespace std;
 
@@ -68,22 +69,33 @@ private:
 class PumpCtrlUnit
 {
 public:
-    PumpCtrlUnit(Screen &scr, int pumpPin, int tempPin, int flowPin);
-    void ctrlTick();
+    PumpCtrlUnit(Screen &scr, PumpMqttManager &mqtt, int pumpPin, int tempPin, int flowPin);
+    void       init();
+    void       loop();
+    Settings_t exportSettings();
+    void       onMqttUpdate(Settings_t set);
+    void       onScreenUpdate(Settings_t set);
+    void       onMqttPumpOn();
+    void       onButtonPumpOn();
 
 private:
-    Screen    &screen;     // 显示屏对象
-    FlowSensor flowSensor; // 流量传感器对象
-    TempSensor tempSensor; // 温度传感器对象
-    int        pumpPinNo;  // 泵引脚号
-    int        tempPinNo;  // 温度引脚号
-    int        flowPinNo;  // 流速引脚号
+    Screen          &_screen;    // 显示屏对象
+    PumpMqttManager &_mqtt;      // MQTT对象
+    FlowSensor       flowSensor; // 流量传感器对象
+    TempSensor       tempSensor; // 温度传感器对象
+    int              pumpPinNo;  // 泵引脚号
+    int              tempPinNo;  // 温度引脚号
+    int              flowPinNo;  // 流速引脚号
 
-    int           tempC = 25;
-    float         flow  = 0;
+    Settings_t    _settings; // 当前循环泵的设置
+    State_t       _state;    // 当前循环泵的状态（含传感器）
+    int           tempC  = 25;
+    float         flow   = 0;
+    bool          pumpOn = false;
     struct tm     realTime;
-    bool          pumpOn     = false;
-    unsigned long lastMillis = 0;
+    unsigned long lastMillis_sensor    = 0;
+    unsigned long lastMillis_mqtt      = 0;
+    unsigned long lastMillis_discovery = 0;
     void          switchPump(bool pumpOn);
     void          readTemperature();
     void          readFlow();

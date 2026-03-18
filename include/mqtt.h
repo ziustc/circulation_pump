@@ -3,10 +3,10 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <WiFi.h>
-#include "screen.h" // 包含 Settings 结构体定义
+#include "common.h"
 
 // 回调函数类型
-typedef void (*OnMsgCallback_t)(Settings set);
+typedef void (*OnMsgCallback_t)(Settings_t set);
 typedef void (*OnPumpOnCallback_t)();
 
 class PumpMqttManager
@@ -14,7 +14,7 @@ class PumpMqttManager
 public:
     PumpMqttManager();
 
-    void begin();
+    void init();
     void loop();
     void reconnect();
     void setOnMsgCallback(OnMsgCallback_t cb);
@@ -22,7 +22,8 @@ public:
     void sendMsg(const char *topic, const char *payload);
 
     void sendDiscoveries();
-    void sendState(Settings &pumpSettings);
+    void sendSettings(Settings_t &pumpSettings);
+    void sendState(State_t &pumpState);
 
 private:
     static PumpMqttManager *instance; // 保存对象指针
@@ -38,7 +39,11 @@ private:
     static String timeDiscoveryPayload(String entityName, String entityId);
     static String
     numberDiscoveryPayload(String entityName, String entityId, const char *unit, int min, int max, int step = 1);
+    static String       waterDiscoveryPayload(String entityName, String entityId);
+    static String       flowDiscoveryPayload(String entityName, String entityId);
+    static String       pumpOnDiscoveryPayload(String entityName, String entityId);
     static String       buttonDiscoveryPayload(String entityName, String entityId);
     static JsonDocument DiscoveryPayloadTemplate(String entityName, String entityId);
-    static String       statePayload(Settings &pumpSettings);
+    static String       settingsPayload(Settings_t &pumpSettings);
+    static String       statePayload(State_t &pumpState);
 };

@@ -109,7 +109,12 @@ void OtaAssist::initService()
     _server.begin();
 
     // 准备就绪
-    XLOG("OTA", "ready for next OTA");
+
+    XLOG("OTA",
+         "current partition = %s, version = %s, status = %s",
+         strSubtype(_running->subtype).c_str(),
+         _version.c_str(),
+         strStatus(_status).c_str());
 }
 
 void OtaAssist::loop() { _server.handleClient(); }

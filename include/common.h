@@ -1,6 +1,4 @@
-#ifndef COMMON_H
-#define COMMON_H
-
+#pragma once
 #include <U8g2lib.h>
 
 // fonts
@@ -16,6 +14,21 @@
 #define FONT_MID_ENG      u8g2_font_profont15_tr      // (7x13) 中英文数字
 #define FONT_SMALL_ENG2   u8g2_font_bitcasual_tr      // (11x11) 小英文数字
 
+struct Settings_t
+{
+    int startHour[3]   = {-1, -1, -1};
+    int startMinute[3] = {-1, -1, -1};
+    int endHour[3]     = {-1, -1, -1};
+    int endMinute[3]   = {-1, -1, -1};
+    int waterMinSec    = -1;
+    int waterMaxSec    = -1;
+    int pumpOnDuration = -1;
+    int demandTemp     = -1;
+};
 
-
-#endif // COMMON_H
+struct State_t
+{
+    int   tempC  = 0;
+    float flow   = 0;
+    bool  pumpOn = 0;
+};

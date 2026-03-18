@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_sntp.h>
-#include <U8g2lib.h>
 #include "httpota.h"
 #include "extlogger.h"
 #include "mqtt.h"
@@ -26,19 +25,19 @@ using namespace std;
 
 long lastMillis = 0;
 
-OtaAssist       ota(80);
-PumpMqttManager mqtt;
+OtaAssist ota(80);
 
-Screen       scr;
-Button       btnUp, btnDown, btnOK, btnShift, btnStart;
-Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnStart};
-PumpCtrlUnit ptu(scr, PUMP_PIN, TEMP_PIN, FLOW_PIN);
+PumpMqttManager mqtt;
+Screen          scr;
+Button          btnUp, btnDown, btnOK, btnShift, btnPumpOn;
+Button         *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnPumpOn};
+PumpCtrlUnit    ptu(scr, mqtt, PUMP_PIN, TEMP_PIN, FLOW_PIN);
 
 void templateOfSetup();
 void timeCalibNotice(struct timeval *tv);
 void initPin();
 void initButton();
-void reportSettings(Settings ctrlSet);
+void uploadSettings(Settings_t ctrlSet);
 
 void setup(void)
 {
@@ -47,19 +46,26 @@ void setup(void)
 
     // 初始化引脚
     initPin();
-    XLOG("System", "Pins initialized.");
+    XLOG("Init", "Pins initialized.");
 
     // 准备显示屏
     scr.init();
-    scr.setExportSettings_cb(reportSettings);
-    XLOG("System", "Screen initialized.");
+    scr.setExportSettings_cb([](const Settings_t &set) { ptu.onScreenUpdate(set); });
+    XLOG("Init", "Screen initialized.");
 
     // 按键初始化
     initButton();
-    XLOG("System", "Buttons initialized.");
+    XLOG("Init", "Buttons initialized.");
 
     // 初始化MQTT
-    mqtt.begin();
+    mqtt.init();
+    mqtt.setOnMsgCallback([](Settings_t set) { ptu.onMqttUpdate(set); });
+    mqtt.setPumpOnCallback([]() { ptu.onMqttPumpOn(); });
+    XLOG("Init", "MQTT connected.");
+
+    // 泵控制单元初始化
+    ptu.init();
+    XLOG("Init", "Pump Control Unit initialized.");
 }
 
 void loop(void)
@@ -77,7 +83,7 @@ void loop(void)
     mqtt.loop();
 
     // 泵控制单元
-    ptu.ctrlTick();
+    ptu.loop();
 
     // 按键扫描
     for (int i = 0; i < 5; i++)
@@ -97,7 +103,7 @@ void loop(void)
     if (now - lastMillis >= 1000)
     {
         // mqtt.sendMsg("homeassistant/pump/config", "信息");
-        XLOG("System", "正常运行中... uptime = %lus, FPS = %.2f", now / 1000, fps);
+        XLOG("System", "running, uptime = %lus, FPS = %.2f", now / 1000, fps);
         lastMillis = now;
     }
 }
@@ -106,13 +112,15 @@ void loop(void)
  * 这是一套基础配置的模板，配置串口，连接WiFi，启动OTA服务，准备日志服务器，并同步时间
  * 顺序和内容尽量不要变，以免启动即重启无法OTA重刷
  * 需要如下依赖：
-   #include <WiFi.h>
-   #include <esp_sntp.h>
-   #include "httpota.h"
-   #include "Logger.h"
-   #include "ssid.h"
-   OtaAssist ota(80);
-   void timeCalibNotice(struct timeval *tv) { Serial.println("sntp time calibrated."); }
+    #include <Arduino.h>
+    #include <WiFi.h>
+    #include <esp_sntp.h>
+    #include "httpota.h"
+    #include "extlogger.h"
+    #include "ssid.h"
+ * 声明如下变量和函数
+    OtaAssist ota(80);
+    void timeCalibNotice(struct timeval *tv) { Serial.println("sntp time calibrated."); }
  */
 void templateOfSetup()
 {
@@ -126,7 +134,7 @@ void templateOfSetup()
     // Log初始化
     ExtLogger::instance().enableSerial();
     ExtLogger::instance().begin();
-    XLOG("System", "ExtLogger initialized.");
+    XLOG("Init", "ExtLogger initialized.");
 
     // 连接 WiFi
     XLOG("WiFi", "Connecting to WiFi...");
@@ -139,7 +147,7 @@ void templateOfSetup()
         delay(1000);
         ESP.restart();
     }
-    XLOG("WiFi", "WIFI connected. IP = %s, Hostname = %s", WiFi.localIP().toString().c_str(), WiFi.getHostname());
+    XLOG("Init", "WIFI connected. IP = %s, Hostname = %s", WiFi.localIP().toString().c_str(), WiFi.getHostname());
 
     // LOG准备其他日志通道
     ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
@@ -147,10 +155,12 @@ void templateOfSetup()
 
     // 启动OTA服务
     ota.initService();
+    XLOG("Init", "HTTP OTA service initialized.");
 
     // 同步真实时间
     configTime(8 * 3600, 0, NTP_SERVER);
     sntp_set_time_sync_notification_cb(timeCalibNotice);
+    XLOG("Init", "SNTP time sync initialized.");
 }
 
 /**
@@ -190,13 +200,15 @@ void initButton()
     btnShift.setTouchPin(TOUCH_SHIFT);
     btnShift.setCallbackClick([]() { scr.onShift(); });
 
-    btnStart.setTouchPin(TOUCH_START);
-    btnStart.setCallbackClick([]() { scr.onStart(); });
+    btnPumpOn.setTouchPin(TOUCH_START);
+    btnPumpOn.setCallbackClick([]() { ptu.onButtonPumpOn(); });
 }
 
-void reportSettings(Settings set)
+/**
+ * scr发生了数据更新，将新设置回传给外部
+ */
+void uploadSettings(Settings_t set)
 {
     // 这里应使用MQTT将数据发送出去
     XLOG("System", "Reporting settings...");
-    mqtt.sendDiscoveries();
 }
