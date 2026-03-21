@@ -4,7 +4,6 @@
 #include "httpota.h"
 #include "extlogger.h"
 #include "mqtt.h"
-
 #include "ssid.h"
 #include "screen.h"
 #include "panel.h"
@@ -20,13 +19,13 @@
 #define TOUCH_SHIFT 6
 #define TOUCH_OK    7
 #define TOUCH_START 8
+#define BEEP_PIN    15
 
 using namespace std;
 
 long lastMillis = 0;
 
-OtaAssist ota(80);
-
+OtaAssist       ota(80);
 PumpMqttManager mqtt;
 Screen          scr;
 Button          btnUp, btnDown, btnOK, btnShift, btnPumpOn;
@@ -37,15 +36,15 @@ void templateOfSetup();
 void timeCalibNotice(struct timeval *tv);
 void initPin();
 void initButton();
-void uploadSettings(Settings_t ctrlSet);
 
 void setup(void)
 {
+    initPin();
+
     // 基础配置模板
     templateOfSetup();
 
     // 初始化引脚
-    initPin();
     XLOG("Init", "Pins initialized.");
 
     // 准备显示屏
@@ -103,7 +102,13 @@ void loop(void)
     if (now - lastMillis >= 1000)
     {
         // mqtt.sendMsg("homeassistant/pump/config", "信息");
-        XLOG("System", "running, uptime = %lus, FPS = %.2f", now / 1000, fps);
+        State_t state = ptu.getState();
+        XLOG("System",
+             "running, FPS=%.2f, temp=%d°C, flow=%.2fL/min, pump %s",
+             fps,
+             state.tempC,
+             state.flow,
+             state.pumpOn ? "ON" : "OFF");
         lastMillis = now;
     }
 }
@@ -174,6 +179,23 @@ void timeCalibNotice(struct timeval *tv)
 
 void initPin()
 {
+    // 按键，传感器，泵，蜂鸣器引脚
+    digitalWrite(PUMP_PIN, LOW);
+    pinMode(PUMP_PIN, OUTPUT);
+
+    digitalWrite(BEEP_PIN, LOW);
+    pinMode(BEEP_PIN, OUTPUT);
+
+    pinMode(FLOW_PIN, INPUT);
+    pinMode(TEMP_PIN, INPUT);
+
+    pinMode(TOUCH_UP, INPUT_PULLUP);
+    pinMode(TOUCH_DOWN, INPUT_PULLUP);
+    pinMode(TOUCH_SHIFT, INPUT_PULLUP);
+    pinMode(TOUCH_OK, INPUT_PULLUP);
+    pinMode(TOUCH_START, INPUT_PULLUP);
+
+    // OLED屏幕的CS、DC、RST引脚，SPI引脚
     pinMode(39, OUTPUT);
     pinMode(40, OUTPUT);
     pinMode(41, OUTPUT);
@@ -187,28 +209,26 @@ void initPin()
 void initButton()
 {
     btnUp.setTouchPin(TOUCH_UP);
+    btnUp.setBeepPin(BEEP_PIN);
     btnUp.setLongPressEnable(true);
-    btnUp.setCallbackClick([]() { scr.onUp(); });
+    btnUp.setClickCallback([]() { scr.onUp(); });
 
     btnDown.setTouchPin(TOUCH_DOWN);
+    btnDown.setBeepPin(BEEP_PIN);
     btnDown.setLongPressEnable(true);
-    btnDown.setCallbackClick([]() { scr.onDown(); });
+    btnDown.setClickCallback([]() { scr.onDown(); });
 
     btnOK.setTouchPin(TOUCH_OK);
-    btnOK.setCallbackClick([]() { scr.onOK(); });
+    btnOK.setBeepPin(BEEP_PIN);
+    btnOK.setClickCallback([]() { scr.onOK(); });
 
     btnShift.setTouchPin(TOUCH_SHIFT);
-    btnShift.setCallbackClick([]() { scr.onShift(); });
+    btnShift.setBeepPin(BEEP_PIN);
+    btnShift.setClickCallback([]() { scr.onShift(); });
 
     btnPumpOn.setTouchPin(TOUCH_START);
-    btnPumpOn.setCallbackClick([]() { ptu.onButtonPumpOn(); });
-}
-
-/**
- * scr发生了数据更新，将新设置回传给外部
- */
-void uploadSettings(Settings_t set)
-{
-    // 这里应使用MQTT将数据发送出去
-    XLOG("System", "Reporting settings...");
+    btnPumpOn.setBeepPin(BEEP_PIN);
+    btnPumpOn.setClickCallback([]() { ptu.onButtonPumpOn(); });
+    btnPumpOn.setVeryLongPressEnable(true);
+    btnPumpOn.setVeryLongPressCallback([]() { ESP.restart(); });
 }

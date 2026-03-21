@@ -1,6 +1,7 @@
 #include <functional>
 #include <Arduino.h>
 #include "button.h"
+#include "extlogger.h"
 
 using namespace std;
 
@@ -11,20 +12,32 @@ Button::Button()
     lastChangeMillis = 0;
     firstClickTime   = 0;
     lastClickTime    = 0;
-    callbackClick    = nullptr;
+    click_cb         = nullptr;
 }
 
-void Button::setLongPressEnable(bool enable) { lpEnable = enable; }
+void Button::setLongPressEnable(bool enable)
+{
+    if (enable) setVeryLongPressEnable(false);
+    lpEnable = enable;
+}
 
 bool Button::getLongPressEnable() { return lpEnable; }
 
-void Button::setCallbackClick(function<void()> cbClick) { callbackClick = cbClick; }
+void Button::setVeryLongPressEnable(bool enable)
+{
+    if (enable) setLongPressEnable(false);
+    vlpEnable = enable;
+}
+
+bool Button::getVeryLongPressEnable() { return vlpEnable; }
+
+void Button::setClickCallback(function<void()> cbClick) { click_cb = cbClick; }
 
 void Button::setTouchPin(int pinNum) { buttonPinNum = pinNum; }
 int  Button::getTouchPin() { return buttonPinNum; }
 
 /**
- * @brief 带防抖功能的按键检测函数，主循环中调用，识别单击和长按
+ * @brief 带防抖功能的按键检测函数，主循环中调用，识别单击，长按，超长按
  */
 void Button::stateTick(int pinValue)
 {
@@ -62,22 +75,43 @@ void Button::stateTick(int pinValue)
     {
         onLongPress(); // 每次调用都触发一次长按事件
     }
+
+    // 若该按键支持超长按，且持续按下状态超过阈值，则触发超长按事件
+    if (getVeryLongPressEnable() && lastStableState && (now - firstClickTime) > VERY_LONG_PRESS_MS)
+    {
+        onVeryLongPress(); // 每次调用都触发一次超长按事件
+    }
+
+    // 蜂鸣器控制：按下时开启，持续100ms后关闭
+    if (beepPinNum >= 0 && beepOnMillis > 0 && (now - beepOnMillis) > BEEP_DURATION_MS)
+    {
+        digitalWrite(beepPinNum, LOW);
+        beepOnMillis = 0;
+    }
 }
 
 void Button::onSingleClick()
 {
-    if (callbackClick != nullptr) callbackClick();
+    // 要先拉高蜂鸣器电平，再调用click_cb（发送MQTT），不然蜂鸣器不起振
+    if (beepPinNum >= 0)
+    {
+        digitalWrite(beepPinNum, HIGH);
+        beepOnMillis = millis();
+    }
+    if (click_cb) click_cb();
 }
 
 void Button::onLongPress()
 {
     unsigned long now = millis();
-
     if ((now - lastClickTime) < REPEAT_MS) return;
-
-    if (callbackClick != nullptr) callbackClick();
-
+    if (click_cb) click_cb();
     lastClickTime = now;
+}
+
+void Button::onVeryLongPress()
+{
+    if (alterPress_cb) alterPress_cb();
 }
 
 bool Button::readTP(int pinValue)

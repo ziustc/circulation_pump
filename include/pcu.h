@@ -1,12 +1,14 @@
 #pragma once
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <time.h>
 #include <esp_adc_cal.h>
 #include <deque>
 #include <screen.h>
 #include "mqtt.h"
+#include "extlogger.h"
 
 using namespace std;
 
@@ -18,14 +20,13 @@ public:
      * 读取流量值。读取时计算，为保证计算准确性，最好是约0.5~1秒读一次
      */
     float getFlow();
+    void  init();
 
 private:
-    static constexpr int   RECENT_DATA_COUNT = 5;     // 滚动记录最近5次脉冲周期
-    static constexpr int   ANTI_SHAKE        = 3;     // 单位：毫秒。防抖阈值
-    static constexpr int   FREQ_VS_CYCLE     = 10;    // 单位：Hz。高于10Hz按脉冲次数算；低于按周期平均值算
-    static constexpr float K_FLOW            = 500.0; // 流量常数，每L多少脉冲
-
-    static FlowSensor *instance;
+    static constexpr int   RECENT_DATA_COUNT = 5;   // 滚动记录最近5次脉冲周期
+    static constexpr int   ANTI_SHAKE        = 3;   // 单位：毫秒。防抖阈值
+    static constexpr int   FREQ_VS_CYCLE     = 10;  // 单位：Hz。高于10Hz按脉冲次数算；低于按周期平均值算
+    static constexpr float K_FLOW            = 650; // 单位：pulse/L。流量常数，每L多少脉冲
 
     int   pinNo;
     float flow = 0;
@@ -40,17 +41,14 @@ private:
 
     void                  calcFlow();
     void IRAM_ATTR        handleInterrupt();
-    static void IRAM_ATTR isrHandler(void *arg)
-    {
-        FlowSensor *self = static_cast<FlowSensor *>(arg);
-        self->handleInterrupt();
-    }
+    static void IRAM_ATTR isrHandler(void *arg);
 };
 
 class TempSensor
 {
 public:
     TempSensor(int tempPin);
+    void init();
     int  getTempC();
     void sensorTick();
 
@@ -72,13 +70,32 @@ public:
     PumpCtrlUnit(Screen &scr, PumpMqttManager &mqtt, int pumpPin, int tempPin, int flowPin);
     void       init();
     void       loop();
-    Settings_t exportSettings();
-    void       onMqttUpdate(Settings_t set);
-    void       onScreenUpdate(Settings_t set);
-    void       onMqttPumpOn();
-    void       onButtonPumpOn();
+    Settings_t getSettings();
+    State_t    getState();
+
+    void onMqttUpdate(Settings_t set);
+    void onScreenUpdate(Settings_t set);
+    void onMqttPumpOn();
+    void onButtonPumpOn();
 
 private:
+    enum class PumpOnReason_t
+    {
+        TEMP_CRITERIA,
+        WATER_CRITERIA,
+        BUTTON,
+        MQTT,
+        OFF
+    };
+
+    enum class PumpOffReason_t
+    {
+        NORMAL,         // 正常关泵，温控达到指定温度，水控达到指定时长，BUTTON和MQTT开泵达到指定时长
+        TEMP_OVERTIME,  // 特殊关泵，温控开启时长太久
+        TEMP_BUTTON_OFF // 特殊关泵，温控开泵时按键关闭
+    };
+
+    Preferences      prefs;      // NVS对象
     Screen          &_screen;    // 显示屏对象
     PumpMqttManager &_mqtt;      // MQTT对象
     FlowSensor       flowSensor; // 流量传感器对象
@@ -87,17 +104,28 @@ private:
     int              tempPinNo;  // 温度引脚号
     int              flowPinNo;  // 流速引脚号
 
-    Settings_t    _settings; // 当前循环泵的设置
-    State_t       _state;    // 当前循环泵的状态（含传感器）
-    int           tempC  = 25;
-    float         flow   = 0;
-    bool          pumpOn = false;
-    struct tm     realTime;
-    unsigned long lastMillis_sensor    = 0;
-    unsigned long lastMillis_mqtt      = 0;
-    unsigned long lastMillis_discovery = 0;
-    void          switchPump(bool pumpOn);
-    void          readTemperature();
-    void          readFlow();
-    void          readTime();
+    Settings_t      _settings;                                // 当前循环泵的设置
+    State_t         _state;                                   // 当前循环泵的状态（含传感器）
+    PumpOnReason_t  _pumpOnReason  = PumpOnReason_t::OFF;     // 水泵开启原因
+    PumpOffReason_t _pumpOffReason = PumpOffReason_t::NORMAL; // 水泵关闭原因
+    unsigned long   _pumpOnMillis  = 0;
+    unsigned long   _pumpOffMillis = 0;
+    int             tempC          = 25;
+    float           flow           = 0;
+    bool            pumpOn         = false;
+    struct tm       realTime;
+    unsigned long   lastMillis_sensor    = 0;
+    unsigned long   lastMillis_mqtt      = 0;
+    unsigned long   lastMillis_discovery = 0;
+    void            saveSettingsNVS();
+    bool            readSettingsNVS();
+    void            switchPump(bool pumpOn);
+    void            readTemperature();
+    void            readFlow();
+    void            readTime();
+    void            tempCriteria();
+    void            waterCriteria();
+    void            stopCriteria();
+    String          strOnOffComment();
+    String          strPumpOffReason();
 };

@@ -310,7 +310,7 @@ TempCtrl::TempCtrl()
     // 设定温度显示
     inputFields[0].setDigitCount(2);
     inputFields[0].setPosition(nullptr, 80, 30); // 构造函数时暂时没有u8g2用nullptr，所有坐标相对(0, 0)初始化
-    inputFields[0].setLimit(25, 45);
+    inputFields[0].setLimit(TEMP_SETTING_LOWEST, TEMP_SETTING_HIGHEST);
     inputFields[0].setValue(35);
 
     // 注册所有Pattern对象
@@ -347,11 +347,11 @@ void TempCtrl::setData(int set)
 void TempCtrl::inputHandler()
 {
     vector<InputDigit> &inputFields = getInputFields();
-    if (inputFields[0].getValue() < 25)
-        inputFields[0].setValue(25);
+    if (inputFields[0].getValue() < TEMP_SETTING_LOWEST)
+        inputFields[0].setValue(TEMP_SETTING_LOWEST);
 
-    else if (inputFields[0].getValue() > 45)
-        inputFields[0].setValue(45);
+    else if (inputFields[0].getValue() > TEMP_SETTING_HIGHEST)
+        inputFields[0].setValue(TEMP_SETTING_HIGHEST);
 }
 
 /*************************************************************/
@@ -626,34 +626,7 @@ void TempIndicator::drawSpecific()
 /*                        温度曲线                            */
 /*************************************************************/
 
-TempCurve::TempCurve()
-{
-    setPosition(nullptr, 0, 0);
-
-    tempPoints.push_front(30);
-    tempPoints.push_front(28);
-    tempPoints.push_front(25);
-    tempPoints.push_front(35);
-    tempPoints.push_front(38);
-    tempPoints.push_front(35);
-    tempPoints.push_front(30);
-    tempPoints.push_front(28);
-    tempPoints.push_front(25);
-    tempPoints.push_front(25);
-    tempPoints.push_front(25);
-
-    pumpOnPoints.push_front(true);
-    pumpOnPoints.push_front(true);
-    pumpOnPoints.push_front(true);
-    pumpOnPoints.push_front(true);
-    pumpOnPoints.push_front(true);
-    pumpOnPoints.push_front(false);
-    pumpOnPoints.push_front(false);
-    pumpOnPoints.push_front(false);
-    pumpOnPoints.push_front(false);
-    pumpOnPoints.push_front(false);
-    pumpOnPoints.push_front(false);
-}
+TempCurve::TempCurve() { setPosition(nullptr, 0, 0); }
 
 void TempCurve::setTemperature(int temp) { temperature = temp; }
 
@@ -789,7 +762,7 @@ void FPSIndicator::drawSpecific()
 
     refreshTick();
 
-    snprintf(buf, sizeof(buf), "otafps=%.1f", fps);
+    snprintf(buf, sizeof(buf), "fps=%.1f", fps);
     u8g2->setFont(FONT_MID_ENG);
     u8g2->drawStr(getX(), getY(), buf);
 }

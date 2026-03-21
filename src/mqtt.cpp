@@ -1,5 +1,5 @@
 #include "mqtt.h"
-#include <Arduino.h> // 提供 String, sscanf, atoi 等
+#include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ssid.h>
 #include "extlogger.h"
@@ -102,7 +102,7 @@ void PumpMqttManager::sendDiscoveries()
     if (!_client.publish(topic.c_str(), payload.c_str())) XLOG("MQTT", "%s failed to send", topic.c_str());
 
     topic   = String("homeassistant/number/") + MQTT_DEMAND_TEMP + "/config";
-    payload = numberDiscoveryPayload("保温温度", MQTT_DEMAND_TEMP, "度", 25, 45);
+    payload = numberDiscoveryPayload("保温温度", MQTT_DEMAND_TEMP, "°C", TEMP_SETTING_LOWEST, TEMP_SETTING_HIGHEST);
     if (!_client.publish(topic.c_str(), payload.c_str())) XLOG("MQTT", "%s failed to send", topic.c_str());
 
     topic   = String("homeassistant/button/") + MQTT_PUMP_ON + "/config";

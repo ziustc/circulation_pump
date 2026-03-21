@@ -3,12 +3,6 @@
 #include <math.h>
 #include "extlogger.h"
 
-#define PREF_OTA_NEW     1
-#define PREF_OTA_PENDING 2
-#define PREF_OTA_STABLE  3
-#define PREF_OTA_INVALID 4
-#define PREF_UART_STABLE 5
-
 /** _prefs("ota")中有如下NVS信息：
  * "VERSION": String，当前固件版本号字符串
  * "APP_STATUS": Int，当前OTA状态
@@ -33,15 +27,16 @@ void OtaAssist::stableCheck()
     _running = (esp_partition_t *)esp_ota_get_running_partition();
     _prefs.begin("ota", false);
     _version = _prefs.getString("VERSION", "unknown");
-    _status  = _prefs.getInt("APP_STATUS", PREF_UART_STABLE); // 如果没有记录，则一定是串口烧录，按稳定处理
+    _status  = static_cast<OtaStatus_t>(_prefs.getInt(
+        "APP_STATUS", static_cast<int>(OtaStatus_t::UART_STABLE))); // 如果没有记录，则一定是串口烧录，按稳定处理
     Serial.printf(
         "[OTA] current partition: %s, version: %s\r\n", strSubtype(_running->subtype).c_str(), _version.c_str());
 
     // 如果当前分区状态为UART烧录，则默认稳定，无需处理
-    if (_status == PREF_UART_STABLE)
+    if (_status == OtaStatus_t::UART_STABLE)
     {
-        _status = PREF_UART_STABLE;
-        _prefs.putInt("APP_STATUS", PREF_UART_STABLE);
+        _status = OtaStatus_t::UART_STABLE;
+        _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::UART_STABLE));
         _prefs.putInt("STABLE_SUBTYPE", _running->subtype);
         _prefs.putString("STABLE_VERSION", _version);
         _prefs.end();
@@ -50,7 +45,7 @@ void OtaAssist::stableCheck()
     }
 
     // 如果当前分区状态为稳定，则无需处理
-    if (_status == PREF_OTA_STABLE)
+    if (_status == OtaStatus_t::OTA_STABLE)
     {
         _prefs.end();
         Serial.println("[OTA] firmware stable");
@@ -58,10 +53,10 @@ void OtaAssist::stableCheck()
     }
 
     // 否则说明本次是OTA升级待验证，状态为PENDING
-    if (_status == PREF_OTA_NEW)
+    if (_status == OtaStatus_t::OTA_NEW)
     {
-        _status = PREF_OTA_PENDING;
-        _prefs.putInt("APP_STATUS", PREF_OTA_PENDING);
+        _status = OtaStatus_t::OTA_PENDING;
+        _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::OTA_PENDING));
     }
 
     // 如果PENDING状态不超过3次重启，则仍然标记为PENDING，记录重启次数+1
@@ -75,7 +70,7 @@ void OtaAssist::stableCheck()
     }
 
     // PENDING超过3次重启，说明本次固件版本不稳定，状态为INVALID，回滚到上一个版本
-    _status = PREF_OTA_INVALID;
+    _status = OtaStatus_t::OTA_INVALID;
 
     // 回滚重启
     // ----如果记录有上次稳定版本，则回滚到上次稳定版本，否则找到下一个可用分区回滚
@@ -89,7 +84,7 @@ void OtaAssist::stableCheck()
 
     // ----NVS回到上次稳定版本的信息
     _prefs.putString("VERSION", _prefs.getString("STABLE_VERSION", "unknown"));
-    _prefs.putInt("APP_STATUS", PREF_OTA_NEW);
+    _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::OTA_NEW));
     _prefs.putInt("VERIFY_TIMES", 0);
 
     // ----重启
@@ -186,10 +181,10 @@ void OtaAssist::otaOnEnd()
 {
     _prefs.begin("ota", false);
     _prefs.putString("VERSION", _version);
-    _prefs.putInt("APP_STATUS", PREF_OTA_NEW);
+    _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::OTA_NEW));
     _prefs.putInt("VERIFY_TIMES", 0);
     _prefs.end();
-    _status = PREF_OTA_NEW;
+    _status = OtaStatus_t::OTA_NEW;
     XLOG("OTA", "Update finished, Rebooting...");
 }
 
@@ -220,35 +215,35 @@ void OtaAssist::clearOtaData()
 
 void OtaAssist::confirm()
 {
-    if (_status == PREF_OTA_PENDING)
+    if (_status == OtaStatus_t::OTA_PENDING)
     {
         _prefs.begin("ota", false);
-        _prefs.putInt("APP_STATUS", PREF_OTA_STABLE);
+        _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::OTA_STABLE));
         _prefs.putInt("VERIFY_TIMES", 0);
         _prefs.putInt("STABLE_SUBTYPE", _running->subtype);
         _prefs.putString("STABLE_VERSION", _version);
         _prefs.end();
-        _status = PREF_OTA_STABLE;
+        _status = OtaStatus_t::OTA_STABLE;
         XLOG("OTA", "firmware confirmed stable");
     }
 }
 
-bool OtaAssist::isStable() { return (_status == PREF_OTA_STABLE && _status == PREF_UART_STABLE); }
+bool OtaAssist::isStable() { return (_status == OtaStatus_t::OTA_STABLE && _status == OtaStatus_t::UART_STABLE); }
 
-String OtaAssist::strStatus(int status)
+String OtaAssist::strStatus(OtaStatus_t status)
 {
     switch (status)
     {
-    case PREF_OTA_NEW:
-        return "PREF_OTA_NEW";
-    case PREF_OTA_PENDING:
-        return "PREF_OTA_PENDING";
-    case PREF_OTA_STABLE:
-        return "PREF_OTA_STABLE";
-    case PREF_OTA_INVALID:
-        return "PREF_OTA_INVALID";
-    case PREF_UART_STABLE:
-        return "PREF_UART_STABLE";
+    case OtaStatus_t::OTA_NEW:
+        return "OTA_NEW";
+    case OtaStatus_t::OTA_PENDING:
+        return "OTA_PENDING";
+    case OtaStatus_t::OTA_STABLE:
+        return "OTA_STABLE";
+    case OtaStatus_t::OTA_INVALID:
+        return "OTA_INVALID";
+    case OtaStatus_t::UART_STABLE:
+        return "UART_STABLE";
     default:
         return "PREF_OTA_UNKNOWN";
     }

@@ -70,6 +70,7 @@ void Screen::layout()
     panels[3].push_back(&fpsInd);
 }
 
+// 不再使用。现在由PCU初始化各项参数
 void Screen::initIndicatorValue()
 {
     pumpInd.setPumpOnOff(false);
@@ -178,7 +179,7 @@ void Screen::updateTempC(int temp)
     tempCur.setTemperature(temp);
 }
 
-void Screen::updateFlow(int flow) { flowInd.setFlow(flow); }
+void Screen::updateFlow(float flow) { flowInd.setFlow(flow); }
 
 void Screen::setExportSettings_cb(function<void(Settings_t)> cb) { exportSettings_cb = cb; }
 

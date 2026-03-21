@@ -23,7 +23,7 @@ public:
     void       updateSignal(int strength);
     void       updatePumpOn(bool isOn);
     void       updateTempC(int temp);
-    void       updateFlow(int volume);
+    void       updateFlow(float volume);
     void       importSettings(Settings_t set);
     Settings_t exportSettings();
     void       setExportSettings_cb(function<void(Settings_t)> cb);

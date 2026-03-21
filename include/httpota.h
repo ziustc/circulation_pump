@@ -49,10 +49,18 @@ public:
     bool isStable();
 
 private:
+    enum class OtaStatus_t
+    {
+        OTA_NEW     = 1, // 刚OTA升级完成，待验证
+        OTA_PENDING = 2, // 验证过程中，重启过一次以上但未超过3次
+        OTA_STABLE  = 3, // 验证通过，稳定版本
+        OTA_INVALID = 4, // 验证失败，回滚到上一个稳定版本
+        UART_STABLE = 5  // 串口烧录的版本，默认稳定
+    };
     Preferences      _prefs;
     WebServer        _server;
     String           _version;
-    int              _status;
+    OtaStatus_t      _status;
     esp_partition_t *_running, *_last;
 
     // 以下为OTA过程处理函数
@@ -64,5 +72,5 @@ private:
 
     // 以下为检查OTA版本状态和回滚的函数
     static String strSubtype(esp_partition_subtype_t subtype);
-    static String strStatus(int status);
+    static String strStatus(OtaStatus_t status);
 };
