@@ -441,7 +441,6 @@ void PumpCtrlUnit::stopCriteria()
             _pumpOnReason  = PumpOnReason_t::OFF;
             _pumpOffReason = PumpOffReason_t::NORMAL;
             switchPump(false);
-
             return;
         }
         if (millis() - _pumpOnMillis >= TEMP_OVERTIME_LIMIT * 60 * 1000) // 若温控开泵超过1小时，强制关泵以防过热
@@ -451,6 +450,7 @@ void PumpCtrlUnit::stopCriteria()
             switchPump(false);
             return;
         }
+        return;
     }
 
     // 其余（水控开泵，按键开泵，MQTT开泵）均按持续时长关泵

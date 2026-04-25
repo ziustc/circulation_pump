@@ -10,21 +10,13 @@
 
 using namespace std;
 
-int aaa = 0;
-
-Screen::Screen()
-{
-    // 将三个主要的输入面板放到vector中，以便快速循环切换焦点，注意三个面板的顺序
-    ctrlPanels.push_back(&waterPanel);
-    ctrlPanels.push_back(&tempPanel);
-    ctrlPanels.push_back(&timePanel);
-}
+Screen::Screen() { }
 
 void Screen::init()
 {
-    uint8_t csPin[]  = {42, 40, 9, 14};
+    uint8_t csPin[]  = {47, 40, 9, 14};
     uint8_t dcPin[]  = {13, 13, 13, 13};
-    uint8_t rstPin[] = {41, 39, 10, 21};
+    uint8_t rstPin[] = {48, 39, 10, 21};
 
     // 初始化u8g2
     for (int i = 0; i < 4; i++)
@@ -35,6 +27,11 @@ void Screen::init()
         u8g2[i]->enableUTF8Print();
         u8g2[i]->setBusClock(20000000);
     }
+
+    // 将三个主要的输入面板放到vector中，以便快速循环切换焦点，注意三个面板的顺序
+    ctrlPanels.push_back(&waterPanel);
+    ctrlPanels.push_back(&tempPanel);
+    ctrlPanels.push_back(&timePanel);
 
     // panel排版
     layout();

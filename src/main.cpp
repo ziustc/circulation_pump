@@ -132,8 +132,7 @@ void templateOfSetup()
     // 初始化串口
     Serial.begin(115200);
     Serial.println("Reboot");
-    // 若是OTA升级，需要注释掉本条
-    // ota.clearOtaData();
+    // ota.clearOtaData();    // 若是OTA升级，需要注释掉本条
     ota.stableCheck();
 
     // Log初始化
