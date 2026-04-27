@@ -10,13 +10,12 @@ import socket
 # ==========================
 # 用户配置
 # ==========================
-DEVICE_IP = "192.168.0.197"   # 修改为你的ESP32 IP
-PORT = 8000
-# ==========================
 
-# 获取固件路径
+# 获取固件路径，目标IP，端口
 FIRMWARE_PATH = sys.argv[1]
+DEVICE_IP = sys.argv[2]
 FILENAME = os.path.basename(FIRMWARE_PATH)
+PORT = 8000
 
 # 自动获取本机IP
 def get_local_ip():

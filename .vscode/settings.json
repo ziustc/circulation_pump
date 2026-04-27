@@ -9,23 +9,5 @@
         "vector": "cpp",
         "string_view": "cpp",
         "initializer_list": "cpp"
-    },
-    // 是否检查插件冲突
-    "clangd.detectExtensionConflicts": true,
-    "clangd.path": "C:\\Program_Leo\\clangd_20.1.8\\bin\\clangd.exe",
-    // 查找的头文件路径，每一项前缀 -I
-    "clangd.fallbackFlags": [],
-    "clangd.arguments": [
-        "--background-index",
-        "-j=12",
-        "--all-scopes-completion",
-        "--completion-style=detailed",
-        "--header-insertion=iwyu",
-        "--pch-storage=memory",
-        "--cross-file-rename",
-        "--enable-config",
-        "--fallback-style=WebKit",
-        "--pretty",
-        "--clang-tidy"
-    ]
+    }
 }

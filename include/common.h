@@ -43,7 +43,8 @@ struct Settings_t
 
 struct State_t
 {
-    int   tempC  = 0;
+    int   tempC  = 0; // 泵体水温
+    int   tempC2 = 0; // 用水端水温
     float flow   = 0;
     bool  pumpOn = 0;
 };

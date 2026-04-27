@@ -47,6 +47,9 @@ void setup(void)
     // 初始化引脚
     XLOG("Init", "Pins initialized.");
 
+    // 测试
+    XLOG("TEST", "This is a test log message.");
+
     // 准备显示屏
     scr.init();
     scr.setExportSettings_cb([](const Settings_t &set) { ptu.onScreenUpdate(set); });
@@ -58,7 +61,8 @@ void setup(void)
 
     // 初始化MQTT
     mqtt.init();
-    mqtt.setOnMsgCallback([](Settings_t set) { ptu.onMqttUpdate(set); });
+    mqtt.setOnCmdCallback([](Settings_t set) { ptu.onMqttUpdate(set); });
+    mqtt.setOnStateCallback([](State_t state) { ptu.onMqttUpdate(state); });
     mqtt.setPumpOnCallback([]() { ptu.onMqttPumpOn(); });
     XLOG("Init", "MQTT connected.");
 
@@ -103,10 +107,10 @@ void loop(void)
     {
         // mqtt.sendMsg("homeassistant/pump/config", "信息");
         State_t state = ptu.getState();
-        XLOG("System",
-             "running, FPS=%.2f, temp=%d°C, flow=%.2fL/min, pump %s",
-             fps,
+        XLOG("PCU",
+             "State: tempC=%d C, tempC2=%d C, flow=%.1f L/min, pumpOn=%s",
              state.tempC,
+             state.tempC2,
              state.flow,
              state.pumpOn ? "ON" : "OFF");
         lastMillis = now;
@@ -132,7 +136,7 @@ void templateOfSetup()
     // 初始化串口
     Serial.begin(115200);
     Serial.println("Reboot");
-    // ota.clearOtaData();    // 若是OTA升级，需要注释掉本条
+    // ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
     ota.stableCheck();
 
     // Log初始化
@@ -197,8 +201,9 @@ void initPin()
     // OLED屏幕的CS、DC、RST引脚，SPI引脚
     pinMode(39, OUTPUT);
     pinMode(40, OUTPUT);
-    pinMode(41, OUTPUT);
-    pinMode(42, OUTPUT);
+    pinMode(47, OUTPUT);
+    pinMode(48, OUTPUT);
+    pinMode(13, OUTPUT);
     pinMode(9, OUTPUT);
     pinMode(10, OUTPUT);
     pinMode(14, OUTPUT);
