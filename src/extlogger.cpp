@@ -53,13 +53,9 @@ void ExtLogger::push(const char *str)
     for (size_t i = 0; i < len; i++)
     {
         buffer[writePos] = str[i];
-        writePos++;
-        if (writePos >= LOGGER_BUFFER_SIZE) writePos = 0;
-        if (writePos == readPos)
-        {
-            readPos++;
-            if (readPos >= LOGGER_BUFFER_SIZE) readPos = 0;
-        }
+        writePos         = (writePos + 1) % LOGGER_BUFFER_SIZE;
+
+        if (writePos == readPos) readPos = (readPos + 1) % LOGGER_BUFFER_SIZE;
     }
 
     xSemaphoreGive(mutex);
@@ -78,9 +74,8 @@ bool ExtLogger::popLine(char *out)
     size_t i = 0;
     while (readPos != writePos && i < LOGGER_MAX_LINE - 1)
     {
-        char c = buffer[readPos];
-        readPos++;
-        if (readPos >= LOGGER_BUFFER_SIZE) readPos = 0;
+        char c   = buffer[readPos];
+        readPos  = (readPos + 1) % LOGGER_BUFFER_SIZE;
         out[i++] = c;
         if (c == '\n') break;
     }
@@ -119,7 +114,7 @@ void ExtLogger::log(const char *tag, const char *fmt, ...)
 void ExtLogger::telnetHandleClient()
 {
     if (!telnetEnabled) return;
-    if (!telnetClient || !telnetClient.connected()) telnetClient = telnetServer->available();
+    if (!telnetClient || !telnetClient.connected()) telnetClient = telnetServer->accept();
 }
 
 void ExtLogger::taskEntry(void *arg)
