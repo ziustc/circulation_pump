@@ -7,6 +7,8 @@
 #include "pattern.h"
 #include "symbols.h"
 #include "common.h"
+#include "extlogger.h"
+#include "SPI.h"
 
 using namespace std;
 
@@ -18,14 +20,21 @@ void Screen::init()
     uint8_t dcPin[]  = {13, 13, 13, 13};
     uint8_t rstPin[] = {48, 39, 10, 21};
 
-    // 初始化u8g2
+    SPI.begin(12, -1, 11, -1);
+    pinMode(13, OUTPUT);
+
+    char buf[10];
     for (int i = 0; i < 4; i++)
     {
-        u8g2[i] =
-            new U8G2_SH1108_128X160_F_4W_HW_SPI(U8G2_R0, /* cs=*/csPin[i], /* dc=*/dcPin[i], /* reset=*/rstPin[i]);
+        u8g2[i] = new U8G2_SH1108_128X160_F_4W_HW_SPI(U8G2_R0, csPin[i], dcPin[i], rstPin[i]);
         u8g2[i]->begin();
-        u8g2[i]->enableUTF8Print();
-        u8g2[i]->setBusClock(20000000);
+        snprintf(buf, sizeof(buf), "SCREEN");
+        u8g2[i]->setFont(u8g2_font_fub20_tf);
+        u8g2[i]->drawStr(10, 70, buf);
+        snprintf(buf, sizeof(buf), "%d", i);
+        u8g2[i]->setFont(u8g2_font_fub30_tf);
+        u8g2[i]->drawStr(54, 120, buf);
+        u8g2[i]->sendBuffer();
     }
 
     // 将三个主要的输入面板放到vector中，以便快速循环切换焦点，注意三个面板的顺序

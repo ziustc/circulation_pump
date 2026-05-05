@@ -2,7 +2,7 @@
 #include "extlogger.h"
 #include "common.h"
 
-PumpCtrlUnit::PumpCtrlUnit(Screen &scr, PumpMqttManager &mqtt, int pumpPin, int tempPin, int flowPin)
+PumpCtrlUnit::PumpCtrlUnit(Screen &scr, MqttManager &mqtt, int pumpPin, int tempPin, int flowPin)
 : _screen(scr)
 , _mqtt(mqtt)
 , flowSensor(flowPin)
@@ -124,10 +124,30 @@ void PumpCtrlUnit::onScreenUpdate(Settings_t set)
     saveSettingsNVS();
 }
 
-void PumpCtrlUnit::onMqttPumpOn()
+void PumpCtrlUnit::onMqttPumpOn(bool setOn)
 {
-    _pumpOnReason = PumpOnReason_t::MQTT;
-    switchPump(true);
+    // 状态未改变则直接返回
+    if (_state.pumpOn == setOn) return;
+
+    // 当前未开，MQTT要求开泵
+    if (setOn)
+    {
+        _pumpOnReason = PumpOnReason_t::MQTT;
+        switchPump(true);
+    }
+
+    // 当前开泵，MQTT要求关泵
+    else
+    {
+        // 如果是温控开泵，MQTT关泵则视为特殊关泵，强制温控暂停一段时间，否则因为温度不到立即又开泵导致MQTT无法关断
+        if (_pumpOnReason == PumpOnReason_t::TEMP_CRITERIA)
+            _pumpOffReason = PumpOffReason_t::TEMP_BUTTON_OFF;
+        else
+            _pumpOffReason = PumpOffReason_t::NORMAL;
+        _pumpOnReason = PumpOnReason_t::OFF;
+
+        switchPump(false);
+    }
 }
 
 void PumpCtrlUnit::onButtonPumpOn()

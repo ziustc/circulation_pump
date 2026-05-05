@@ -3,7 +3,7 @@
 #include <esp_sntp.h>
 #include "httpota.h"
 #include "extlogger.h"
-#include "mqtt.h"
+#include "mqtt2.h"
 #include "ssid.h"
 #include "screen.h"
 #include "panel.h"
@@ -25,12 +25,12 @@ using namespace std;
 
 long lastMillis = 0;
 
-OtaAssist       ota(80);
-PumpMqttManager mqtt;
-Screen          scr;
-Button          btnUp, btnDown, btnOK, btnShift, btnPumpOn;
-Button         *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnPumpOn};
-PumpCtrlUnit    ptu(scr, mqtt, PUMP_PIN, TEMP_PIN, FLOW_PIN);
+OtaAssist    ota(80);
+MqttManager  mqtt;
+Screen       scr;
+Button       btnUp, btnDown, btnOK, btnShift, btnPumpOn;
+Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnPumpOn};
+PumpCtrlUnit ptu(scr, mqtt, PUMP_PIN, TEMP_PIN, FLOW_PIN);
 
 void templateOfSetup();
 void timeCalibNotice(struct timeval *tv);
@@ -61,10 +61,10 @@ void setup(void)
 
     // 初始化MQTT
     mqtt.init();
-    mqtt.setOnCmdCallback([](Settings_t set) { ptu.onMqttUpdate(set); });
-    mqtt.setOnStateCallback([](State_t state) { ptu.onMqttUpdate(state); });
-    mqtt.setPumpOnCallback([]() { ptu.onMqttPumpOn(); });
-    XLOG("Init", "MQTT connected.");
+    mqtt.setOnCmdCB([](Settings_t set) { ptu.onMqttUpdate(set); });
+    mqtt.setOnStateCB([](State_t state) { ptu.onMqttUpdate(state); });
+    mqtt.setOnSwitchCB([](bool setOn) { ptu.onMqttPumpOn(setOn); });
+    XLOG("Init", "MQTT initialized.");
 
     // 泵控制单元初始化
     ptu.init();
@@ -136,7 +136,7 @@ void templateOfSetup()
     // 初始化串口
     Serial.begin(115200);
     Serial.println("Reboot");
-    // ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
+    ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
     ota.stableCheck();
 
     // Log初始化
@@ -148,8 +148,20 @@ void templateOfSetup()
     XLOG("WiFi", "Connecting to WiFi...");
     WiFi.setHostname(HOSTNAME);
     WiFi.mode(WIFI_STA);
-    WiFi.begin(SSID, PASSWORD);
-    if (WiFi.waitForConnectResult() != WL_CONNECTED)
+
+    bool wifiConnected = false;
+    for (int i = 0; i < 5; i++)
+    {
+        WiFi.begin(SSID, PASSWORD);
+        if (WiFi.waitForConnectResult() == WL_CONNECTED)
+        {
+            wifiConnected = true;
+            break;
+        }
+        XLOG("WiFi", "Connection Failed! Retrying...");
+        delay(500);
+    }
+    if (!wifiConnected)
     {
         XLOG("WiFi", "Connection Failed! Rebooting...");
         delay(1000);
@@ -183,11 +195,11 @@ void timeCalibNotice(struct timeval *tv)
 void initPin()
 {
     // 按键，传感器，泵，蜂鸣器引脚
-    digitalWrite(PUMP_PIN, LOW);
     pinMode(PUMP_PIN, OUTPUT);
+    digitalWrite(PUMP_PIN, LOW);
 
-    digitalWrite(BEEP_PIN, LOW);
     pinMode(BEEP_PIN, OUTPUT);
+    digitalWrite(BEEP_PIN, LOW);
 
     pinMode(FLOW_PIN, INPUT);
     pinMode(TEMP_PIN, INPUT);
@@ -197,17 +209,6 @@ void initPin()
     pinMode(TOUCH_SHIFT, INPUT_PULLUP);
     pinMode(TOUCH_OK, INPUT_PULLUP);
     pinMode(TOUCH_START, INPUT_PULLUP);
-
-    // OLED屏幕的CS、DC、RST引脚，SPI引脚
-    pinMode(39, OUTPUT);
-    pinMode(40, OUTPUT);
-    pinMode(47, OUTPUT);
-    pinMode(48, OUTPUT);
-    pinMode(13, OUTPUT);
-    pinMode(9, OUTPUT);
-    pinMode(10, OUTPUT);
-    pinMode(14, OUTPUT);
-    pinMode(21, OUTPUT);
 }
 
 void initButton()

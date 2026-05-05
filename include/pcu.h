@@ -6,7 +6,7 @@
 #include <time.h>
 #include <deque>
 #include <screen.h>
-#include "mqtt.h"
+#include "mqtt2.h"
 #include "extlogger.h"
 #include "sensor.h"
 
@@ -15,7 +15,7 @@ using namespace std;
 class PumpCtrlUnit
 {
 public:
-    PumpCtrlUnit(Screen &scr, PumpMqttManager &mqtt, int pumpPin, int tempPin, int flowPin);
+    PumpCtrlUnit(Screen &scr, MqttManager &mqtt, int pumpPin, int tempPin, int flowPin);
     void       init();
     void       loop();
     Settings_t getSettings();
@@ -24,7 +24,7 @@ public:
     void onMqttUpdate(Settings_t set);
     void onMqttUpdate(State_t state);
     void onScreenUpdate(Settings_t set);
-    void onMqttPumpOn();
+    void onMqttPumpOn(bool setOn);
     void onButtonPumpOn();
 
 private:
@@ -44,14 +44,14 @@ private:
         TEMP_BUTTON_OFF // 特殊关泵，温控开泵时按键关闭
     };
 
-    Preferences      prefs;      // NVS对象
-    Screen          &_screen;    // 显示屏对象
-    PumpMqttManager &_mqtt;      // MQTT对象
-    FlowSensor       flowSensor; // 流量传感器对象
-    TempSensor       tempSensor; // 温度传感器对象
-    int              pumpPinNo;  // 泵引脚号
-    int              tempPinNo;  // 温度引脚号
-    int              flowPinNo;  // 流速引脚号
+    Preferences  prefs;      // NVS对象
+    Screen      &_screen;    // 显示屏对象
+    MqttManager &_mqtt;      // MQTT对象
+    FlowSensor   flowSensor; // 流量传感器对象
+    TempSensor   tempSensor; // 温度传感器对象
+    int          pumpPinNo;  // 泵引脚号
+    int          tempPinNo;  // 温度引脚号
+    int          flowPinNo;  // 流速引脚号
 
     Settings_t      _settings;                                // 当前循环泵的设置
     State_t         _state;                                   // 当前循环泵的状态（含传感器）

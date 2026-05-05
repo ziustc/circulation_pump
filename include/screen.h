@@ -29,7 +29,7 @@ public:
     void       setExportSettings_cb(function<void(Settings_t)> cb);
 
 private:
-    U8G2_SH1108_128X160_F_4W_HW_SPI *u8g2[4];
+    U8G2_SH1108_128X160_F_4W_HW_SPI *u8g2[4] = {nullptr, nullptr, nullptr, nullptr};
 
     PumpIndicator     pumpInd;
     FlowIndicator     flowInd;

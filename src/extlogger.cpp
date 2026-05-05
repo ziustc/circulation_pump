@@ -109,6 +109,7 @@ void ExtLogger::log(const char *tag, const char *fmt, ...)
 
     // 完整日志推送到缓冲区
     push(line);
+    Serial.print(line); // 直接输出到串口，不走task，避免串口日志延迟
 }
 
 void ExtLogger::telnetHandleClient()
@@ -132,7 +133,7 @@ void ExtLogger::taskLoop()
         telnetHandleClient();
         if (popLine(line))
         {
-            if (serialEnabled) serialPrint(line);
+            // if (serialEnabled) serialPrint(line); // 串口不走task，直接在log函数里打印
             if (udpEnabled) udpPrint(line);
             if (telnetEnabled) telnetPrint(line);
         }
