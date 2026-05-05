@@ -28,6 +28,9 @@ void Screen::init()
     {
         u8g2[i] = new U8G2_SH1108_128X160_F_4W_HW_SPI(U8G2_R0, csPin[i], dcPin[i], rstPin[i]);
         u8g2[i]->begin();
+        u8g2[i]->setBusClock(20000000);
+        u8g2[i]->enableUTF8Print();
+
         snprintf(buf, sizeof(buf), "SCREEN");
         u8g2[i]->setFont(u8g2_font_fub20_tf);
         u8g2[i]->drawStr(10, 70, buf);
