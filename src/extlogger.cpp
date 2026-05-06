@@ -10,7 +10,12 @@ ExtLogger &ExtLogger::instance()
 
 ExtLogger::ExtLogger() { mutex = xSemaphoreCreateMutex(); }
 
-void ExtLogger::begin() { xTaskCreatePinnedToCore(taskEntry, "loggerTask", 4096, this, 1, &taskHandle, 1); }
+void ExtLogger::init(const char *hostName, bool showRealTime)
+{
+    snprintf(_hostName, sizeof(_hostName), "%s", hostName);
+    _showRealTime = showRealTime;
+    xTaskCreatePinnedToCore(taskEntry, "loggerTask", 4096, this, 1, &taskHandle, 1);
+}
 
 void ExtLogger::enableSerial(uint32_t baud)
 {
@@ -45,17 +50,46 @@ bool ExtLogger::tryLock()
     return false;
 }
 
+size_t ExtLogger::usedSize()
+{
+    if (writePos >= readPos) return writePos - readPos;
+    return LOGGER_BUFFER_SIZE - (readPos - writePos);
+}
+
+size_t ExtLogger::freeSize() { return LOGGER_BUFFER_SIZE - usedSize(); }
+
+void ExtLogger::discardOldestLine()
+{
+    if (readPos == writePos) return;
+
+    while (readPos != writePos)
+    {
+        char c  = buffer[readPos];
+        readPos = (readPos + 1) % LOGGER_BUFFER_SIZE;
+        if (c == '\n') break;
+    }
+}
+
 void ExtLogger::push(const char *str)
 {
     if (!tryLock()) return;
 
     size_t len = strlen(str);
+    if (len >= LOGGER_BUFFER_SIZE)
+    {
+        xSemaphoreGive(mutex);
+        return;
+    }
+
+    while (len > freeSize())
+    {
+        discardOldestLine();
+    }
+
     for (size_t i = 0; i < len; i++)
     {
         buffer[writePos] = str[i];
         writePos         = (writePos + 1) % LOGGER_BUFFER_SIZE;
-
-        if (writePos == readPos) readPos = (readPos + 1) % LOGGER_BUFFER_SIZE;
     }
 
     xSemaphoreGive(mutex);
@@ -91,25 +125,36 @@ void ExtLogger::log(const char *tag, const char *fmt, ...)
     char      timebuf[32];
     time_t    now = time(NULL);
     struct tm t;
+
     localtime_r(&now, &t);
-    if (t.tm_year + 1900 > 2020) // Year > 2020表示已经真实时间
+    if (_showRealTime && t.tm_year + 1900 > 2020) // Year > 2020表示已经真实时间
         snprintf(timebuf, sizeof(timebuf), "%02d:%02d:%02d", t.tm_hour, t.tm_min, t.tm_sec);
     else
         snprintf(timebuf, sizeof(timebuf), "%lu", millis());
 
     // 格式化日志内容
-    char    body[LOGGER_MAX_LINE];
-    char    line[LOGGER_MAX_LINE];
+    char    userText[LOGGER_MAX_LINE];
+    char    fullLog[LOGGER_MAX_LINE];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(body, sizeof(body), fmt, args);
+    vsnprintf(userText, sizeof(userText), fmt, args);
     va_end(args);
-    if (!strstr(body, "\n")) strcat(body, "\r\n");
-    snprintf(line, sizeof(line), "%s [%s]: %s", timebuf, tag, body);
+
+    // 去掉末尾用户自加的\r,\n,或\r\n
+    size_t len = strlen(userText);
+    if (len >= 2 && userText[len - 2] == '\r' && userText[len - 1] == '\n')
+        userText[len - 2] = '\0';
+    else if (userText[len - 1] == '\n' || userText[len - 1] == '\r')
+        userText[len - 1] = '\0';
+
+    // 组装为完整log
+    snprintf(fullLog, sizeof(fullLog), "%s [%s.%s]: %s\r\n", timebuf, _hostName, tag, userText);
 
     // 完整日志推送到缓冲区
-    push(line);
-    Serial.print(line); // 直接输出到串口，不走task，避免串口日志延迟
+    push(fullLog);
+
+    // 若enable串口，则直接阻塞方式打印，实时观察程序状态
+    if (serialEnabled) serialPrint(fullLog);
 }
 
 void ExtLogger::telnetHandleClient()
@@ -130,7 +175,10 @@ void ExtLogger::taskLoop()
 
     while (true)
     {
+        // 处理Telnet客户端连接
         telnetHandleClient();
+
+        // 从缓冲区取出一行日志，发送到各个sink
         if (popLine(line))
         {
             // if (serialEnabled) serialPrint(line); // 串口不走task，直接在log函数里打印

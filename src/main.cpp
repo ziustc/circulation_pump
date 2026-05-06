@@ -32,17 +32,65 @@ Button       btnUp, btnDown, btnOK, btnShift, btnPumpOn;
 Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnPumpOn};
 PumpCtrlUnit ptu(scr, mqtt, PUMP_PIN, TEMP_PIN, FLOW_PIN);
 
-void templateOfSetup();
 void timeCalibNotice(struct timeval *tv);
 void initPin();
 void initButton();
 
 void setup(void)
 {
+    // 初始化串口
+    Serial.begin(115200);
+    Serial.println("=====Reboot================Reboot================Reboot=====");
+
+    // 检查OTA版本状态，若不稳定则回滚到上一个稳定版本
+    // ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
+    ota.stableCheck();
+
+    // 初始化引脚
     initPin();
 
-    // 基础配置模板
-    templateOfSetup();
+    // Log初始化
+    ExtLogger::instance().init("circ_pump", false);
+    ExtLogger::instance().enableSerial();
+    XLOG("Init", "ExtLogger initialized.");
+
+    // 连接 WiFi
+    XLOG("WiFi", "Connecting to WiFi...");
+    WiFi.setHostname(HOSTNAME);
+    WiFi.mode(WIFI_STA);
+
+    bool wifiConnected = false;
+    for (int i = 0; i < 5; i++)
+    {
+        WiFi.begin(SSID, PASSWORD);
+        if (WiFi.waitForConnectResult() == WL_CONNECTED)
+        {
+            wifiConnected = true;
+            break;
+        }
+        XLOG("WiFi", "Connection Failed! Retrying...");
+        delay(500);
+    }
+    if (!wifiConnected)
+    {
+        XLOG("WiFi", "Connection Failed! Rebooting...");
+        delay(1000);
+        ESP.restart();
+    }
+    XLOG("Init", "WIFI connected. IP = %s, Hostname = %s", WiFi.localIP().toString().c_str(), WiFi.getHostname());
+
+    // LOG准备其他日志通道
+    ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
+    // ExtLogger::instance().enableTelnet();
+
+    // 启动OTA服务
+    ota.initService();
+    XLOG("Init", "HTTP OTA service initialized.");
+
+    // 同步真实时间
+    configTime(8 * 3600, 0, NTP_SERVER);
+    sntp_set_time_sync_notification_cb(timeCalibNotice);
+    XLOG("Init", "SNTP time sync initialized.");
 
     // 初始化引脚
     XLOG("Init", "Pins initialized.");
@@ -115,72 +163,6 @@ void loop(void)
              state.pumpOn ? "ON" : "OFF");
         lastMillis = now;
     }
-}
-
-/**
- * 这是一套基础配置的模板，配置串口，连接WiFi，启动OTA服务，准备日志服务器，并同步时间
- * 顺序和内容尽量不要变，以免启动即重启无法OTA重刷
- * 需要如下依赖：
-    #include <Arduino.h>
-    #include <WiFi.h>
-    #include <esp_sntp.h>
-    #include "httpota.h"
-    #include "extlogger.h"
-    #include "ssid.h"
- * 声明如下变量和函数
-    OtaAssist ota(80);
-    void timeCalibNotice(struct timeval *tv) { Serial.println("sntp time calibrated."); }
- */
-void templateOfSetup()
-{
-    // 初始化串口
-    Serial.begin(115200);
-    Serial.println("Reboot");
-    ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
-    ota.stableCheck();
-
-    // Log初始化
-    ExtLogger::instance().enableSerial();
-    ExtLogger::instance().begin();
-    XLOG("Init", "ExtLogger initialized.");
-
-    // 连接 WiFi
-    XLOG("WiFi", "Connecting to WiFi...");
-    WiFi.setHostname(HOSTNAME);
-    WiFi.mode(WIFI_STA);
-
-    bool wifiConnected = false;
-    for (int i = 0; i < 5; i++)
-    {
-        WiFi.begin(SSID, PASSWORD);
-        if (WiFi.waitForConnectResult() == WL_CONNECTED)
-        {
-            wifiConnected = true;
-            break;
-        }
-        XLOG("WiFi", "Connection Failed! Retrying...");
-        delay(500);
-    }
-    if (!wifiConnected)
-    {
-        XLOG("WiFi", "Connection Failed! Rebooting...");
-        delay(1000);
-        ESP.restart();
-    }
-    XLOG("Init", "WIFI connected. IP = %s, Hostname = %s", WiFi.localIP().toString().c_str(), WiFi.getHostname());
-
-    // LOG准备其他日志通道
-    ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
-    // ExtLogger::instance().enableTelnet();
-
-    // 启动OTA服务
-    ota.initService();
-    XLOG("Init", "HTTP OTA service initialized.");
-
-    // 同步真实时间
-    configTime(8 * 3600, 0, NTP_SERVER);
-    sntp_set_time_sync_notification_cb(timeCalibNotice);
-    XLOG("Init", "SNTP time sync initialized.");
 }
 
 /**
