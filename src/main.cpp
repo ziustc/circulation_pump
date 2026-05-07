@@ -80,10 +80,6 @@ void setup(void)
     }
     XLOG("Init", "WIFI connected. IP = %s, Hostname = %s", WiFi.localIP().toString().c_str(), WiFi.getHostname());
 
-    // LOG准备其他日志通道
-    ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
-    // ExtLogger::instance().enableTelnet();
-
     // 启动OTA服务
     ota.initService();
     XLOG("Init", "HTTP OTA service initialized.");
@@ -124,6 +120,9 @@ void loop(void)
     float      fps;
 
     // 整体循环频率约60Hz
+
+    // 处理日志输出
+    ExtLogger::instance().loop();
 
     // OTA监控需要频繁调用
     ota.loop();

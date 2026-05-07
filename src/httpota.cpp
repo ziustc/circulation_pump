@@ -29,8 +29,7 @@ void OtaAssist::stableCheck()
     _version = _prefs.getString("VERSION", "unknown");
     _status  = static_cast<OtaStatus_t>(_prefs.getInt(
         "APP_STATUS", static_cast<int>(OtaStatus_t::UART_STABLE))); // 如果没有记录，则一定是串口烧录，按稳定处理
-    Serial.printf(
-        "[OTA] current partition: %s, version: %s\r\n", strSubtype(_running->subtype).c_str(), _version.c_str());
+    XLOG("OTA", "current partition: %s, version: %s", strSubtype(_running->subtype).c_str(), _version.c_str());
 
     // 如果当前分区状态为UART烧录，则默认稳定，无需处理
     if (_status == OtaStatus_t::UART_STABLE)
@@ -40,7 +39,7 @@ void OtaAssist::stableCheck()
         _prefs.putInt("STABLE_SUBTYPE", _running->subtype);
         _prefs.putString("STABLE_VERSION", _version);
         _prefs.end();
-        Serial.println("[OTA] firmware stable (UART)");
+        XLOG("OTA", "firmware stable (UART)");
         return;
     }
 
@@ -48,7 +47,7 @@ void OtaAssist::stableCheck()
     if (_status == OtaStatus_t::OTA_STABLE)
     {
         _prefs.end();
-        Serial.println("[OTA] firmware stable");
+        XLOG("OTA", "firmware stable");
         return;
     }
 
@@ -65,7 +64,7 @@ void OtaAssist::stableCheck()
     {
         _prefs.putInt("VERIFY_TIMES", verifyTimes + 1);
         _prefs.end();
-        Serial.printf("[OTA] firmware pending verification. Attempt %d times.\r\n", verifyTimes + 1);
+        XLOG("OTA", "firmware pending verification. Attempt %d times.", verifyTimes + 1);
         return;
     }
 
@@ -90,7 +89,7 @@ void OtaAssist::stableCheck()
     // ----重启
     for (int i = 5; i > 0; i--)
     {
-        Serial.printf("[OTA] firmware unstable, rollback in %d s\r\n", i);
+        XLOG("OTA", "firmware unstable, rollback in %d s", i);
         delay(1000);
     }
     esp_restart();

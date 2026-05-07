@@ -25,6 +25,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <freertos/semphr.h>
 
 #define LOGGER_BUFFER_SIZE 1024 // 环形缓冲区总大小，单位字节
 #define LOGGER_MAX_LINE    512  // 单条日志最大长度，单位字节，必须小于 LOGGER_BUFFER_SIZE
@@ -82,6 +83,8 @@ public:
     void log(const char *tag, const char *fmt, ...);
 
 private:
+    SemaphoreHandle_t mutex; // 互斥锁，用于多线程同步
+
     uint8_t         buffer[LOGGER_BUFFER_SIZE]; // 环形缓冲区，仅用于UDP在WiFi断开时
     volatile size_t writePos = 0;               // 下一次写入位置
     volatile size_t readPos  = 0;               // 下一次读取位置
@@ -89,7 +92,7 @@ private:
     bool      serialEnabled = false;  // 串口输出是否启用
     uint32_t  serialBaud    = 115200; // 串口波特率
     bool      udpEnabled    = false;  // UDP 输出是否启用，启用时可能还没初始化，但已经可以开始缓存日志了
-    bool      udpInited     = false;  // UDP 是否已初始化
+    bool      udpInitted    = false;  // UDP 是否已初始化
     WiFiUDP   udp;                    // UDP 输出对象
     IPAddress udpIP;                  // UDP 目标 IP
     uint16_t  udpPort;                // UDP 目标端口

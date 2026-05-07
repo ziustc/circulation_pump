@@ -8,59 +8,88 @@ ExtLogger &ExtLogger::instance()
     return inst;
 }
 
-ExtLogger::ExtLogger() { }
+ExtLogger::ExtLogger() { mutex = xSemaphoreCreateMutex(); }
 
 void ExtLogger::init(const char *shortName, bool showRealTime)
 {
+    xSemaphoreTake(mutex, portMAX_DELAY);
+
     snprintf(hostName, sizeof(hostName), "%s", shortName);
     logRealTime = showRealTime;
+
+    xSemaphoreGive(mutex);
 }
 
 void ExtLogger::loop()
 {
-    char line[LOGGER_MAX_LINE];
+    xSemaphoreTake(mutex, portMAX_DELAY);
 
-    if (udpEnabled && !udpInited && WiFi.isConnected())
-        if (udp.begin(0)) udpInited = true;
+    if (udpEnabled && WiFi.isConnected())
+    {
+        if (!udpInitted)
+            if (udp.begin(0)) udpInitted = true;
 
-    if (udpEnabled && udpInited && WiFi.isConnected())
-        while (popLine(line))
-            udpPrint(line);
+        // 如果初始化成功，则用一条空日志触发udpPrint发送缓冲区日志
+        if (udpInitted) udpPrint("");
+    }
+
+    xSemaphoreGive(mutex);
 }
 
 void ExtLogger::enableSerial(uint32_t baud)
 {
+    xSemaphoreTake(mutex, portMAX_DELAY);
     serialEnabled = true;
     serialBaud    = baud;
+    xSemaphoreGive(mutex);
 
     Serial.begin(serialBaud);
 }
 
-void ExtLogger::disableSerial() { serialEnabled = false; }
+void ExtLogger::disableSerial()
+{
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    serialEnabled = false;
+    xSemaphoreGive(mutex);
+}
 
 void ExtLogger::enableUDP(const char *targetIp, uint16_t port)
 {
+    xSemaphoreTake(mutex, portMAX_DELAY);
+
     udpEnabled = true;
     udpPort    = port;
     udpIP.fromString(targetIp);
 
     if (WiFi.isConnected())
-        if (udp.begin(0)) udpInited = true;
+        if (udp.begin(0)) udpInitted = true;
+
+    xSemaphoreGive(mutex);
 
     log("XLOG", "UDP logger enabled. Target = %s:%d", targetIp, port);
 }
 
 void ExtLogger::disableUDP()
 {
+    xSemaphoreTake(mutex, portMAX_DELAY);
+
     udp.stop();
     udpEnabled = false;
-    udpInited  = false;
+    udpInitted = false;
     writePos   = 0;
     readPos    = 0;
+
+    xSemaphoreGive(mutex);
 }
 
 void ExtLogger::log(const char *tag, const char *fmt, ...)
 {
+    // 虽然看似所有操作都是函数成员变量，这里无需加互斥锁保护
+    // 但是后续所有需要加锁的函数，都由log和loop两个函数调用，所以这里整体加锁保护
+    // 这样做也防止多函数嵌套调用时死锁的可能性，保持代码简洁
+
+    xSemaphoreTake(mutex, portMAX_DELAY);
+
     // 格式化时间
     char      timebuf[32];
     time_t    now = time(NULL);
@@ -95,16 +124,27 @@ void ExtLogger::log(const char *tag, const char *fmt, ...)
 
     // UDP处理
     if (udpEnabled) udpPrint(fullLog);
+
+    xSemaphoreGive(mutex);
 }
 
 void ExtLogger::serialPrint(const char *line) { Serial.print(line); }
 
 void ExtLogger::udpPrint(const char *line)
 {
-    if (udpInited && WiFi.isConnected())
+    char prevLine[LOGGER_MAX_LINE];
+
+    if (udpInitted && WiFi.isConnected())
     {
         udp.beginPacket(udpIP, udpPort);
+
+        // 发送之前缓存的log
+        while (popLine(prevLine))
+            udp.write((uint8_t *)prevLine, strlen(prevLine));
+
+        // 发送当前log
         udp.write((uint8_t *)line, strlen(line));
+
         udp.endPacket();
     }
     else
