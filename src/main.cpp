@@ -31,6 +31,7 @@ Screen       scr;
 Button       btnUp, btnDown, btnOK, btnShift, btnPumpOn;
 Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnPumpOn};
 PumpCtrlUnit ptu(scr, mqtt, PUMP_PIN, TEMP_PIN, FLOW_PIN);
+bool         timeCalNotice = false;
 
 void timeCalibNotice(struct timeval *tv);
 void initPin();
@@ -38,21 +39,21 @@ void initButton();
 
 void setup(void)
 {
-    // 初始化串口
     Serial.begin(115200);
-    Serial.println("=====Reboot================Reboot================Reboot=====");
+    Serial.println("reboot");
+
+    // Log初始化
+    ExtLogger::instance().init("circ_pump", false);
+    ExtLogger::instance().enableSerial(115200);
+    ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
+    XLOG("Init", "=====Reboot================Reboot================Reboot=====");
 
     // 检查OTA版本状态，若不稳定则回滚到上一个稳定版本
-    // ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
+    ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
     ota.stableCheck();
 
     // 初始化引脚
     initPin();
-
-    // Log初始化
-    ExtLogger::instance().init("circ_pump", false);
-    ExtLogger::instance().enableSerial();
-    XLOG("Init", "ExtLogger initialized.");
 
     // 连接 WiFi
     XLOG("WiFi", "Connecting to WiFi...");
@@ -94,9 +95,6 @@ void setup(void)
 
     // 初始化引脚
     XLOG("Init", "Pins initialized.");
-
-    // 测试
-    XLOG("TEST", "This is a test log message.");
 
     // 准备显示屏
     scr.init();
@@ -163,15 +161,18 @@ void loop(void)
              state.pumpOn ? "ON" : "OFF");
         lastMillis = now;
     }
+
+    if (timeCalNotice)
+    {
+        XLOG("Time", "Time synchronized.");
+        timeCalNotice = false;
+    }
 }
 
-/**
- * 时间校准回调函数，与前面templateOfSetup()函数共用。
- */
 void timeCalibNotice(struct timeval *tv)
 {
     // 时间同步完成
-    XLOG("System", "sntp time calibrated.");
+    timeCalNotice = true;
 }
 
 void initPin()
