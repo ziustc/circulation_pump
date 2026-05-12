@@ -49,11 +49,6 @@ void MqttCore::reconnect()
     }
 }
 
-void MqttCore::onReceive(const char *topic, const uint8_t *payload, unsigned int len)
-{
-    if (coreInstance && coreInstance->onReceive_cb) coreInstance->onReceive_cb(topic, payload, len);
-}
-
 bool MqttCore::sendDiscoveryBase(const char         *type,
                                  const char         *entityName,
                                  const char         *entityId,
@@ -89,7 +84,8 @@ bool MqttCore::sendDiscoveryBase(const char         *type,
     // ----设备信息（如果之前已经发送过完整dev属性，后续的就可以只发送identifier以节省流量）
     if (fullDevInfo)
     {
-        dev                   = doc["device"].to<JsonObject>();
+        dev = doc["device"].to<JsonObject>();
+
         dev["identifiers"][0] = _devInfo.identifier;
         dev["name"]           = _devInfo.name;
         dev["manufacturer"]   = _devInfo.manufacturer;
@@ -178,12 +174,33 @@ bool MqttCore::sendState(const JsonDocument &states)
 
     for (JsonPairConst kv : states.as<JsonObjectConst>())
         doc[kv.key()] = kv.value();
+    doc["sender"] = _mqttInfo.clientId;
 
     snprintf(topic, sizeof(topic), "hass/%s/state", _devInfo.id_abbr);
     serializeJson(doc, payload, sizeof(payload));
 
     if (_client.publish(topic, payload, false)) return true;
     return false;
+}
+
+void MqttCore::onReceive(const char *topic, const uint8_t *payload, unsigned int len)
+{
+    JsonDocument doc;
+
+    // 反序列化payload为Json对象，若失败则直接返回
+    DeserializationError err = deserializeJson(doc, payload, len);
+    if (err)
+    {
+        XLOG("MQTT", "deserializeJson failed: %s", err.c_str());
+        return;
+    }
+
+    // 如果包含sender字段且值等于自己的clientId，说明是自己发出的消息，忽略
+    JsonObject obj = doc.as<JsonObject>();
+    if (obj["sender"].is<String>() && obj["sender"] == coreInstance->_mqttInfo.clientId) return;
+
+    // 调用MqttManager的回调函数处理消息
+    if (coreInstance && coreInstance->onReceive_cb) coreInstance->onReceive_cb(topic, obj);
 }
 
 //========================================================//
@@ -304,30 +321,21 @@ void MqttManager::sendState(State_t &pumpState)
     _mqttCore.sendState(states);
 }
 
-void MqttManager::onReceive(const char *topic, const uint8_t *payload, unsigned int len)
+void MqttManager::onReceive(const char *topic, JsonObject &obj)
 {
-    if (managerInstance) managerInstance->AnalyzeMsg(topic, payload, len);
+    if (managerInstance) managerInstance->AnalyzeMsg(topic, obj);
 }
 
-void MqttManager::AnalyzeMsg(const char *topic, const uint8_t *payload, unsigned int len)
+void MqttManager::AnalyzeMsg(const char *topic, JsonObject &obj)
 {
-    JsonDocument         doc;
-    DeserializationError jsonError;
-    char                 stateJson[50];
-    char                 cmdJson[50];
+    char stateJson[50];
+    char cmdJson[50];
 
-    // XLOG("MQTT.received.topic", topic);
-    // XLOG("MQTT.received.payload", (char *)payload);
-
-    jsonError = deserializeJson(doc, payload);
-    if (jsonError) return;
-
-    JsonObject jsonObj = doc.as<JsonObject>();
     snprintf(stateJson, sizeof(stateJson), "hass/%s/state", MQTT_DEV_ABBR);
     snprintf(cmdJson, sizeof(cmdJson), "hass/%s/cmd", MQTT_DEV_ABBR);
 
-    if (strcmp(topic, cmdJson) == 0) handleCmd(jsonObj);
-    if (strcmp(topic, stateJson) == 0) handleState(jsonObj);
+    if (strcmp(topic, cmdJson) == 0) handleCmd(obj);
+    if (strcmp(topic, stateJson) == 0) handleState(obj);
 }
 
 void MqttManager::handleCmd(const JsonObject &obj)

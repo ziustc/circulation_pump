@@ -30,8 +30,8 @@ struct DeviceInfo_t
     char        hwVersion[10];
 };
 
-// MqttCore回到MqttManager的回调函数类型
-typedef void (*OnMqttReceive_t)(const char *topic, const uint8_t *payload, unsigned int len);
+// MqttCore回调MqttManager的回调函数类型
+typedef void (*OnMqttReceive_t)(const char *topic, JsonObject &obj);
 
 class MqttCore
 {
@@ -127,8 +127,8 @@ private:
     OnStateCB_t  onState_cb;
     OnSwitchCB_t onSwitch_cb;
 
-    static void onReceive(const char *topic, const uint8_t *payload, unsigned int len);
-    void        AnalyzeMsg(const char *topic, const uint8_t *payload, unsigned int len);
+    static void onReceive(const char *topic, JsonObject &obj);
+    void        AnalyzeMsg(const char *topic, JsonObject &obj);
     void        handleCmd(const JsonObject &obj);
     void        handleState(const JsonObject &obj);
 };
