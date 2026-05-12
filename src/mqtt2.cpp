@@ -1,4 +1,5 @@
 #include "mqtt2.h"
+#include "version.h"
 
 MqttCore    *MqttCore::coreInstance       = nullptr;
 MqttManager *MqttManager::managerInstance = nullptr;
@@ -207,7 +208,7 @@ MqttManager::MqttManager() { managerInstance = this; }
 
 void MqttManager::init()
 {
-    MqttInitParams_t mqttInfo = {.clientId = HOSTNAME, .server = "192.168.0.20", .port = 1883, .bufSize = 1024};
+    MqttInitParams_t mqttInfo = {.clientId = HOSTNAME, .server = MQTT_SERVER, .port = MQTT_PORT, .bufSize = 1024};
 
     DeviceInfo_t devInfo = {.identifier   = "circulation_pump",
                             .name         = "循环泵",
@@ -215,7 +216,7 @@ void MqttManager::init()
                             .manufacturer = "ZiUtility",
                             .model        = "ESP32-S3-Pump",
                             .viaDevice    = "respi_gateway",
-                            .swVersion    = "1.0.0",
+                            .swVersion    = SW_VERSION,
                             .hwVersion    = "1.0.0"};
 
     _mqttCore.init(mqttInfo, devInfo, onReceive);

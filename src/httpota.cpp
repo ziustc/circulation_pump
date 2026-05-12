@@ -8,28 +8,26 @@
  * "APP_STATUS": Int，当前OTA状态
  * "VERIFY_TIMES": Int，当前OTA状态为PENDING时的重启验证次数，超过3次则认为不稳定，回滚到上一个版本
  * "STABLE_SUBTYPE": Int，上一个稳定版本的分区subtype，PREF_OTA_INVALID时回滚到该分区
- * "STABLE_VERSION": String，上一个稳定版本的版本号字符串，回滚后复制
  */
 
 OtaAssist::OtaAssist(uint16_t port)
 : _server(port)
-, _version("unknown")
 , _prefs()
 {
 }
 
 void OtaAssist::stableCheck()
 {
-    // 本函数在启动最前面，还没有logger，只能用串口输出日志
-
     esp_ota_img_states_t state;
 
     _running = (esp_partition_t *)esp_ota_get_running_partition();
     _prefs.begin("ota", false);
-    _version = _prefs.getString("VERSION", "unknown");
-    _status  = static_cast<OtaStatus_t>(_prefs.getInt(
+    _status = static_cast<OtaStatus_t>(_prefs.getInt(
         "APP_STATUS", static_cast<int>(OtaStatus_t::UART_STABLE))); // 如果没有记录，则一定是串口烧录，按稳定处理
-    XLOG("OTA", "current partition: %s, version: %s", strSubtype(_running->subtype).c_str(), _version.c_str());
+    XLOG("OTA",
+         "current partition = %s, status = %s",
+         strSubtype(_running->subtype).c_str(),
+         strStatus(_status).c_str());
 
     // 如果当前分区状态为UART烧录，则默认稳定，无需处理
     if (_status == OtaStatus_t::UART_STABLE)
@@ -37,7 +35,6 @@ void OtaAssist::stableCheck()
         _status = OtaStatus_t::UART_STABLE;
         _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::UART_STABLE));
         _prefs.putInt("STABLE_SUBTYPE", _running->subtype);
-        _prefs.putString("STABLE_VERSION", _version);
         _prefs.end();
         XLOG("OTA", "firmware stable (UART)");
         return;
@@ -47,7 +44,6 @@ void OtaAssist::stableCheck()
     if (_status == OtaStatus_t::OTA_STABLE)
     {
         _prefs.end();
-        XLOG("OTA", "firmware stable");
         return;
     }
 
@@ -82,7 +78,6 @@ void OtaAssist::stableCheck()
     esp_ota_set_boot_partition(_last);
 
     // ----NVS回到上次稳定版本的信息
-    _prefs.putString("VERSION", _prefs.getString("STABLE_VERSION", "unknown"));
     _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::OTA_NEW));
     _prefs.putInt("VERIFY_TIMES", 0);
 
@@ -101,23 +96,13 @@ void OtaAssist::initService()
     _server.on("/", HTTP_GET, [this]() { handleRoot(); });
     _server.on("/update", HTTP_GET, [this]() { handleUpdate(); });
     _server.begin();
-
-    // 准备就绪
-
-    XLOG("OTA",
-         "current partition = %s, version = %s, status = %s",
-         strSubtype(_running->subtype).c_str(),
-         _version.c_str(),
-         strStatus(_status).c_str());
 }
 
 void OtaAssist::loop() { _server.handleClient(); }
 
-String OtaAssist::getVersion() const { return _version; }
-
 void OtaAssist::handleRoot()
 {
-    String info = "Device OK\nVersion: " + _version;
+    String info = "Device OK";
     _server.send(200, "text/plain", info);
 }
 
@@ -179,7 +164,6 @@ void OtaAssist::updateProgBar(size_t current, size_t total)
 void OtaAssist::otaOnEnd()
 {
     _prefs.begin("ota", false);
-    _prefs.putString("VERSION", _version);
     _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::OTA_NEW));
     _prefs.putInt("VERIFY_TIMES", 0);
     _prefs.end();
@@ -220,7 +204,6 @@ void OtaAssist::confirm()
         _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::OTA_STABLE));
         _prefs.putInt("VERIFY_TIMES", 0);
         _prefs.putInt("STABLE_SUBTYPE", _running->subtype);
-        _prefs.putString("STABLE_VERSION", _version);
         _prefs.end();
         _status = OtaStatus_t::OTA_STABLE;
         XLOG("OTA", "firmware confirmed stable");

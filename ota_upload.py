@@ -14,8 +14,11 @@ import socket
 # 获取固件路径，目标IP，端口
 FIRMWARE_PATH = sys.argv[1]
 DEVICE_IP = sys.argv[2]
-FILENAME = os.path.basename(FIRMWARE_PATH)
 PORT = 8000
+FILENAME = os.path.basename(FIRMWARE_PATH)
+VERSION_HEADER = "include/version.h"
+MACRO_PREFIX = '#define SW_VERSION'
+
 
 # 自动获取本机IP
 def get_local_ip():
@@ -28,6 +31,22 @@ def get_local_ip():
     return ip
 
 LOCAL_IP = get_local_ip()
+
+# 获取本次SW_VERSION
+def get_version()->str:
+    if os.path.exists(VERSION_HEADER):
+        with open(VERSION_HEADER, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        for line in lines:
+            # 如果有以 #define SW_VERSION 开头的行
+            if line.strip().startswith(MACRO_PREFIX):
+                version_str = line.strip()[len(MACRO_PREFIX):].strip().replace('"', '')
+                return version_str
+        
+    return "unknown"
+
+SW_VERSION = get_version()
 
 # 切换目录到固件所在目录
 os.chdir(os.path.dirname(FIRMWARE_PATH))
@@ -79,7 +98,8 @@ class OTAHandler(http.server.SimpleHTTPRequestHandler):
             )
             print(progress_text, end="", flush=True)
 
-        print("\r\nSend Complete")
+        get_version()
+        print("\r\nSend Complete, version=", SW_VERSION)
 
 
 # ==========================

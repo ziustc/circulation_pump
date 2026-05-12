@@ -59,7 +59,6 @@ private:
     };
     Preferences      _prefs;
     WebServer        _server;
-    String           _version;
     OtaStatus_t      _status;
     esp_partition_t *_running, *_last;
 

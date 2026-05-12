@@ -10,6 +10,7 @@
 #include "pattern.h"
 #include "button.h"
 #include "pcu.h"
+#include "version.h"
 
 #define PUMP_PIN    16
 #define TEMP_PIN    17
@@ -30,10 +31,9 @@ MqttManager  mqtt;
 Screen       scr;
 Button       btnUp, btnDown, btnOK, btnShift, btnPumpOn;
 Button      *buttons[5] = {&btnUp, &btnDown, &btnOK, &btnShift, &btnPumpOn};
-PumpCtrlUnit ptu(scr, mqtt, PUMP_PIN, TEMP_PIN, FLOW_PIN);
+PumpCtrlUnit pcu(scr, mqtt, PUMP_PIN, TEMP_PIN, FLOW_PIN);
 bool         timeCalNotice = false;
 
-void timeCalibNotice(struct timeval *tv);
 void initPin();
 void initButton();
 
@@ -46,10 +46,10 @@ void setup(void)
     ExtLogger::instance().init("circ_pump", false);
     ExtLogger::instance().enableSerial(115200);
     ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
-    XLOG("Init", "=====Reboot================Reboot================Reboot=====");
+    XLOG("Init", "=====Reboot===== SW_VERSION=%s =====Reboot=====", SW_VERSION);
 
     // 检查OTA版本状态，若不稳定则回滚到上一个稳定版本
-    ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
+    // ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
     ota.stableCheck();
 
     // 初始化引脚
@@ -86,7 +86,7 @@ void setup(void)
 
     // 同步真实时间
     configTime(8 * 3600, 0, NTP_SERVER);
-    sntp_set_time_sync_notification_cb(timeCalibNotice);
+    // sntp_set_time_sync_notification_cb(nullptr);
     XLOG("Init", "SNTP time sync initialized.");
 
     // 初始化引脚
@@ -94,7 +94,7 @@ void setup(void)
 
     // 准备显示屏
     scr.init();
-    scr.setExportSettings_cb([](const Settings_t &set) { ptu.onScreenUpdate(set); });
+    scr.setExportSettings_cb([](const Settings_t &set) { pcu.onScreenUpdate(set); });
     XLOG("Init", "Screen initialized.");
 
     // 按键初始化
@@ -103,13 +103,13 @@ void setup(void)
 
     // 初始化MQTT
     mqtt.init();
-    mqtt.setOnCmdCB([](Settings_t set) { ptu.onMqttUpdate(set); });
-    mqtt.setOnStateCB([](State_t state) { ptu.onMqttUpdate(state); });
-    mqtt.setOnSwitchCB([](bool setOn) { ptu.onMqttPumpOn(setOn); });
+    mqtt.setOnCmdCB([](Settings_t set) { pcu.onMqttUpdate(set); });
+    mqtt.setOnStateCB([](State_t state) { pcu.onMqttUpdate(state); });
+    mqtt.setOnSwitchCB([](bool setOn) { pcu.onMqttPumpOn(setOn); });
     XLOG("Init", "MQTT initialized.");
 
     // 泵控制单元初始化
-    ptu.init();
+    pcu.init();
     XLOG("Init", "Pump Control Unit initialized.");
 }
 
@@ -131,7 +131,7 @@ void loop(void)
     mqtt.loop();
 
     // 泵控制单元
-    ptu.loop();
+    pcu.loop();
 
     // 按键扫描
     for (int i = 0; i < 5; i++)
@@ -151,7 +151,7 @@ void loop(void)
     if (now - lastMillis >= 1000)
     {
         // mqtt.sendMsg("homeassistant/pump/config", "信息");
-        State_t state = ptu.getState();
+        State_t state = pcu.getState();
         XLOG("PCU",
              "State: tempC=%d C, tempC2=%d C, flow=%.1f L/min, pumpOn=%s",
              state.tempC,
@@ -160,18 +160,6 @@ void loop(void)
              state.pumpOn ? "ON" : "OFF");
         lastMillis = now;
     }
-
-    if (timeCalNotice)
-    {
-        XLOG("Time", "Time synchronized.");
-        timeCalNotice = false;
-    }
-}
-
-void timeCalibNotice(struct timeval *tv)
-{
-    // 时间同步完成
-    timeCalNotice = true;
 }
 
 void initPin()
@@ -184,7 +172,7 @@ void initPin()
     digitalWrite(BEEP_PIN, LOW);
 
     pinMode(FLOW_PIN, INPUT);
-    pinMode(TEMP_PIN, INPUT);
+    pinMode(TEMP_PIN, ANALOG);
 
     pinMode(TOUCH_UP, INPUT_PULLUP);
     pinMode(TOUCH_DOWN, INPUT_PULLUP);
@@ -215,7 +203,7 @@ void initButton()
 
     btnPumpOn.setTouchPin(TOUCH_START);
     btnPumpOn.setBeepPin(BEEP_PIN);
-    btnPumpOn.setClickCallback([]() { ptu.onButtonPumpOn(); });
+    btnPumpOn.setClickCallback([]() { pcu.onButtonPumpOn(); });
     btnPumpOn.setVeryLongPressEnable(true);
     btnPumpOn.setVeryLongPressCallback([]() { ESP.restart(); });
 }
