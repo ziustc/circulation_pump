@@ -96,12 +96,20 @@ void Panel::draw(U8G2 *u8g2Ptr, uint16_t x, uint16_t y)
 }
 
 void Panel::registerPattern(Pattern *newPattern) { allPatterns.push_back(newPattern); }
+
 /*************************************************************/
 /*                         CtrlPanel                         */
 /*************************************************************/
 
-CtrlPanel::CtrlPanel()
+template <size_t numDigit, size_t numText>
+CtrlPanel<numDigit, numText>::CtrlPanel()
 {
+    int idx = 0;
+    for (int i = 0; i < numDigit; i++)
+        inputFields[idx++] = &digitFields[i];
+    for (int i = 0; i < numText; i++)
+        inputFields[idx++] = &textFields[i];
+
     isSelected    = false;
     isActive      = false;
     selectedField = -1;
@@ -110,7 +118,8 @@ CtrlPanel::CtrlPanel()
 /**
  * @brief 设置面板选中状态，选中时面板闪烁，但还没进入面板编辑状态
  */
-void CtrlPanel::setSelected(bool sel)
+template <size_t numDigit, size_t numText>
+void CtrlPanel<numDigit, numText>::setSelected(bool sel)
 {
     isSelected = sel;
     if (sel)
@@ -126,12 +135,17 @@ void CtrlPanel::setSelected(bool sel)
 /**
  * @brief 返回面板选中状态
  */
-bool CtrlPanel::getSelected() { return isSelected; }
+template <size_t numDigit, size_t numText>
+bool CtrlPanel<numDigit, numText>::getSelected()
+{
+    return isSelected;
+}
 
 /**
  * @brief 设置面板激活状态，激活时进入面板编辑状态，退出激活时回到面板正常显示状态
  */
-void CtrlPanel::setActive(bool active)
+template <size_t numDigit, size_t numText>
+void CtrlPanel<numDigit, numText>::setActive(bool active)
 {
     // 如果该面板没有可输入的字段，则不响应选中命令
     if (inputFields.empty()) return;
@@ -149,7 +163,7 @@ void CtrlPanel::setActive(bool active)
         if (selectedField == -1)
         {
             selectedField = 0;
-            inputFields[selectedField].setDisplayMode(DM_FLASH);
+            inputFields[selectedField]->setDisplayMode(DM_FLASH);
         }
     }
 
@@ -159,7 +173,7 @@ void CtrlPanel::setActive(bool active)
         // 如果有正在编辑的InputField（一定有），则先退出编辑状态
         if (selectedField != -1)
         {
-            inputFields[selectedField].setDisplayMode(DM_SHOW);
+            inputFields[selectedField]->setDisplayMode(DM_SHOW);
             selectedField = -1;
         }
 
@@ -167,35 +181,40 @@ void CtrlPanel::setActive(bool active)
     }
 }
 
-bool CtrlPanel::getActive() { return isActive; }
+template <size_t numDigit, size_t numText>
+bool CtrlPanel<numDigit, numText>::getActive()
+{
+    return isActive;
+}
 
-void CtrlPanel::switchInput()
+template <size_t numDigit, size_t numText>
+void CtrlPanel<numDigit, numText>::switchInput()
 {
     if (inputFields.empty()) return;
 
-    if (selectedField > -1) inputFields[selectedField].setDisplayMode(DM_SHOW);
+    if (selectedField > -1) inputFields[selectedField]->setDisplayMode(DM_SHOW);
 
     selectedField = (selectedField + 1) % inputFields.size();
-    inputFields[selectedField].setDisplayMode(DM_FLASH);
+    inputFields[selectedField]->setDisplayMode(DM_FLASH);
 }
 
-void CtrlPanel::inputUp()
+template <size_t numDigit, size_t numText>
+void CtrlPanel<numDigit, numText>::inputUp()
 {
     if (inputFields.empty() || selectedField == -1) return;
 
-    inputFields[selectedField].increase();
+    inputFields[selectedField]->increase();
     inputHandler();
 }
 
-void CtrlPanel::inputDown()
+template <size_t numDigit, size_t numText>
+void CtrlPanel<numDigit, numText>::inputDown()
 {
     if (inputFields.empty() || selectedField == -1) return;
 
-    inputFields[selectedField].decrease();
+    inputFields[selectedField]->decrease();
     inputHandler();
 }
-
-vector<InputDigit> &CtrlPanel::getInputFields() { return inputFields; }
 
 /*************************************************************/
 /*                         WaterCtrl                         */
@@ -204,45 +223,36 @@ vector<InputDigit> &CtrlPanel::getInputFields() { return inputFields; }
 WaterCtrl::WaterCtrl()
 {
     // 三个输入字段：开水最短时长，最长时长，水泵运行时长
-    vector<InputDigit> &inputFields = getInputFields();
 
     // 初始化自身位置
     setPosition(nullptr, 0, 0);
 
     // 初始化panel内部pattern
-    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
-    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
-    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
 
-    inputFields[0].setPosition(nullptr, 43, 30); // 构造函数时暂时没有u8g2用nullptr，所有坐标相对(0, 0)初始化
-    inputFields[1].setPosition(nullptr, 65, 30);
-    inputFields[2].setPosition(nullptr, 91, 55);
+    digitFields[0].setFont((uint8_t *)FONT_INPUT_DIGIT);
+    digitFields[1].setFont((uint8_t *)FONT_INPUT_DIGIT);
+    digitFields[2].setFont((uint8_t *)FONT_INPUT_DIGIT);
 
-    inputFields[0].setDigitCount(1);
-    inputFields[1].setDigitCount(1);
-    inputFields[2].setDigitCount(1);
+    digitFields[0].setPosition(nullptr, 43, 30); // 构造函数时暂时没有u8g2用nullptr，所有坐标相对(0, 0)初始化
+    digitFields[1].setPosition(nullptr, 65, 30);
+    digitFields[2].setPosition(nullptr, 91, 55);
 
-    inputFields[0].setLimit(1, 9);
-    inputFields[1].setLimit(1, 9);
-    inputFields[2].setLimit(1, 9);
+    digitFields[0].setDigitCount(1);
+    digitFields[1].setDigitCount(1);
+    digitFields[2].setDigitCount(1);
 
-    inputFields[0].setValue(2);
-    inputFields[1].setValue(6);
-    inputFields[2].setValue(4);
+    digitFields[0].setLimit(1, 9);
+    digitFields[1].setLimit(1, 9);
+    digitFields[2].setLimit(1, 9);
 
-    // 注册所有Pattern对象
-    registerPattern(&inputFields[0]);
-    registerPattern(&inputFields[1]);
-    registerPattern(&inputFields[2]);
-
-    // switchInput();
-    // switchInput();
+    digitFields[0].setValue(2);
+    digitFields[1].setValue(6);
+    digitFields[2].setValue(4);
 }
 
 void WaterCtrl::drawSpecific()
 {
-    vector<InputDigit> inputFields = getInputFields();
-    U8G2              *u8g2        = getU8G2();
+    U8G2 *u8g2 = getU8G2();
 
     // panel外框
     u8g2->drawRFrame(getX(), getY(), 128, 70, 5);
@@ -252,43 +262,35 @@ void WaterCtrl::drawSpecific()
     u8g2->drawUTF8(getX() + 10, getY() + 30, "开水  -  秒");
     u8g2->drawUTF8(getX() + 25, getY() + 55, "水泵启动  分");
 
-    // inputFields[0].draw(u8g2Ptr, getX() + 43, getY() + 30);
-    // inputFields[1].draw(u8g2Ptr, getX() + 65, getY() + 30);
-    // inputFields[2].draw(u8g2Ptr, getX() + 91, getY() + 55);
-
     // 输入字段
-    for (auto &inputFields : getInputFields())
-        inputFields.draw();
+    for (auto field : inputFields)
+        field->draw();
 }
 
 WaterSettings WaterCtrl::getSettings()
 {
-    WaterSettings       ret;
-    vector<InputDigit> &inputFields = getInputFields();
+    WaterSettings ret;
 
-    ret.minSec         = inputFields[0].getValue();
-    ret.maxSec         = inputFields[1].getValue();
-    ret.pumpOnDuration = inputFields[2].getValue();
+    ret.minSec         = digitFields[0].getValue();
+    ret.maxSec         = digitFields[1].getValue();
+    ret.pumpOnDuration = digitFields[2].getValue();
 
     return ret;
 }
 
 void WaterCtrl::setData(WaterSettings set)
 {
-    vector<InputDigit> &inputFields = getInputFields();
-
-    inputFields[0].setValue(set.minSec);
-    inputFields[1].setValue(set.maxSec);
-    inputFields[2].setValue(set.pumpOnDuration);
+    digitFields[0].setValue(set.minSec);
+    digitFields[1].setValue(set.maxSec);
+    digitFields[2].setValue(set.pumpOnDuration);
     inputHandler();
 }
 
 void WaterCtrl::inputHandler()
 {
-    vector<InputDigit> &inputFields = getInputFields();
-    if (inputFields[0].getValue() > inputFields[1].getValue())
+    if (digitFields[0].getValue() > digitFields[1].getValue())
     {
-        inputFields[1].setValue(inputFields[0].getValue());
+        digitFields[1].setValue(digitFields[0].getValue());
     }
 }
 
@@ -299,24 +301,16 @@ void WaterCtrl::inputHandler()
 TempCtrl::TempCtrl()
 {
     // 一个输入字段，水泵设定温度（该温度正负范围内启动）
-    vector<InputDigit> &inputFields = getInputFields();
 
     // 初始化自身位置
     setPosition(nullptr, 0, 0);
 
-    // 初始化panel内部pattern
-    inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
-
     // 设定温度显示
-    inputFields[0].setDigitCount(2);
-    inputFields[0].setPosition(nullptr, 80, 30); // 构造函数时暂时没有u8g2用nullptr，所有坐标相对(0, 0)初始化
-    inputFields[0].setLimit(TEMP_SETTING_LOWEST, TEMP_SETTING_HIGHEST);
-    inputFields[0].setValue(35);
-
-    // 注册所有Pattern对象
-    registerPattern(&inputFields[0]);
-
-    // switchInput();
+    digitFields[0].setFont((uint8_t *)FONT_INPUT_DIGIT);
+    digitFields[0].setDigitCount(2);
+    digitFields[0].setPosition(nullptr, 80, 30); // 构造函数时暂时没有u8g2用nullptr，所有坐标相对(0, 0)初始化
+    digitFields[0].setLimit(TEMP_SETTING_LOWEST, TEMP_SETTING_HIGHEST);
+    digitFields[0].setValue(35);
 }
 
 void TempCtrl::drawSpecific()
@@ -331,27 +325,25 @@ void TempCtrl::drawSpecific()
     u8g2->drawUTF8(getX() + 10, getY() + 30, "设定水温    度");
 
     // 输入字段
-    for (auto &inputFields : getInputFields())
-        inputFields.draw();
+    for (auto field : inputFields)
+        field->draw();
 }
 
-int TempCtrl::getSettings() { return getInputFields()[0].getValue(); }
+int TempCtrl::getSettings() { return digitFields[0].getValue(); }
 
 void TempCtrl::setData(int set)
 {
-    vector<InputDigit> &inputFields = getInputFields();
-    inputFields[0].setValue(set);
+    digitFields[0].setValue(set);
     inputHandler();
 }
 
 void TempCtrl::inputHandler()
 {
-    vector<InputDigit> &inputFields = getInputFields();
-    if (inputFields[0].getValue() < TEMP_SETTING_LOWEST)
-        inputFields[0].setValue(TEMP_SETTING_LOWEST);
+    if (digitFields[0].getValue() < TEMP_SETTING_LOWEST)
+        digitFields[0].setValue(TEMP_SETTING_LOWEST);
 
-    else if (inputFields[0].getValue() > TEMP_SETTING_HIGHEST)
-        inputFields[0].setValue(TEMP_SETTING_HIGHEST);
+    else if (digitFields[0].getValue() > TEMP_SETTING_HIGHEST)
+        digitFields[0].setValue(TEMP_SETTING_HIGHEST);
 }
 
 /*************************************************************/
@@ -360,55 +352,51 @@ void TempCtrl::inputHandler()
 
 TimeCtrl::TimeCtrl()
 {
-    // 三组循环泵有效时段
-    vector<InputDigit> &inputFields = getInputFields();
+    // 一个全局Enable字段，三组循环泵有效时段
 
     // 初始化自身位置
     setPosition(nullptr, 0, 0);
 
-    // 初始化panel内部pattern
+    // 初始化保温总开关
+    static const char *textList[] = {"启用中", "禁用中"};
+    textFields[0].setTextList(textList, 2);
+    textFields[0].setFont((uint8_t *)FONT_CHN_16);
+    textFields[0].setPosition(nullptr, 60, 30);
+    textFields[0].setIndex(0);
+
+    // 初始化保温时段字段
     for (int i = 0; i < 3; i++)
     {
-        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
-        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
-        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
-        inputFields.emplace_back(InputDigit((uint8_t *)FONT_INPUT_DIGIT));
+        digitFields[i * 4 + 0].setFont((uint8_t *)FONT_INPUT_DIGIT);
+        digitFields[i * 4 + 1].setFont((uint8_t *)FONT_INPUT_DIGIT);
+        digitFields[i * 4 + 2].setFont((uint8_t *)FONT_INPUT_DIGIT);
+        digitFields[i * 4 + 3].setFont((uint8_t *)FONT_INPUT_DIGIT);
 
-        inputFields[i * 4 + 0].setPosition(nullptr, 7 + 27 * 0, 60 + i * 28);
-        inputFields[i * 4 + 1].setPosition(nullptr, 7 + 27 * 1, 60 + i * 28);
-        inputFields[i * 4 + 2].setPosition(nullptr, 7 + 27 * 2, 60 + i * 28);
-        inputFields[i * 4 + 3].setPosition(nullptr, 7 + 27 * 3, 60 + i * 28);
+        digitFields[i * 4 + 0].setPosition(nullptr, 7 + 27 * 0, 60 + i * 28);
+        digitFields[i * 4 + 1].setPosition(nullptr, 7 + 27 * 1, 60 + i * 28);
+        digitFields[i * 4 + 2].setPosition(nullptr, 7 + 27 * 2, 60 + i * 28);
+        digitFields[i * 4 + 3].setPosition(nullptr, 7 + 27 * 3, 60 + i * 28);
 
-        inputFields[i * 4 + 0].setLimit(0, 23);
-        inputFields[i * 4 + 1].setLimit(0, 59);
-        inputFields[i * 4 + 2].setLimit(0, 23);
-        inputFields[i * 4 + 3].setLimit(0, 59);
+        ((InputDigit)digitFields[i * 4 + 0]).setLimit(0, 23);
+        digitFields[i * 4 + 1].setLimit(0, 59);
+        digitFields[i * 4 + 2].setLimit(0, 23);
+        digitFields[i * 4 + 3].setLimit(0, 59);
 
         for (int j = 0; j < 4; j++)
         {
-            inputFields[i * 4 + j].setDigitCount(2);
-            inputFields[i * 4 + j].setValue(0);
+            digitFields[i * 4 + j].setDigitCount(2);
+            digitFields[i * 4 + j].setValue(0);
         }
     }
 
     // 三个“+1天”标识
     for (int i = 0; i < 3; i++)
     {
-        dayPlusSign.emplace_back(Pattern((uint8_t *)FONT_NARROW_SMALL, PT_FONT));
-
+        dayPlusSign[i].setFont((uint8_t *)FONT_NARROW_SMALL);
         dayPlusSign[i].setCode("+1");
         dayPlusSign[i].setPosition(nullptr, 112, 55 + i * 28);
         dayPlusSign[i].setDisplayMode(DM_HIDE);
     }
-
-    // 注册所有Pattern对象
-    for (int i = 0; i < 12; i++)
-        registerPattern(&inputFields[i]);
-    for (int i = 0; i < 3; i++)
-        registerPattern(&dayPlusSign[i]);
-
-    // switchInput();
-    // switchInput();
 }
 
 void TimeCtrl::drawSpecific()
@@ -430,8 +418,8 @@ void TimeCtrl::drawSpecific()
     }
 
     // 输入字段
-    for (auto &inputFields : getInputFields())
-        inputFields.draw();
+    for (auto fields : inputFields)
+        fields->draw();
 
     // "+1"标识
     for (int i = 0; i < 3; i++)
@@ -440,52 +428,52 @@ void TimeCtrl::drawSpecific()
 
 TimeSettings TimeCtrl::getSettings()
 {
-    TimeSettings        ret;
-    vector<InputDigit> &inputFields = getInputFields();
+    TimeSettings ret;
 
     for (int i = 0; i < 3; i++)
     {
-        ret.startHour[i]   = inputFields[i * 4 + 0].getValue();
-        ret.startMinute[i] = inputFields[i * 4 + 1].getValue();
-        ret.endHour[i]     = inputFields[i * 4 + 2].getValue();
-        ret.endMinute[i]   = inputFields[i * 4 + 3].getValue();
+        ret.startHour[i]   = digitFields[i * 4 + 0].getValue();
+        ret.startMinute[i] = digitFields[i * 4 + 1].getValue();
+        ret.endHour[i]     = digitFields[i * 4 + 2].getValue();
+        ret.endMinute[i]   = digitFields[i * 4 + 3].getValue();
     }
+    ret.enabled = (textFields[0].getIndex() == 0) ? true : false;
+
     return ret;
 }
 
 void TimeCtrl::setData(TimeSettings set)
 {
-    vector<InputDigit> &inputFields = getInputFields();
-
     for (int i = 0; i < 3; i++)
     {
-        inputFields[i * 4].setValue(set.startHour[i]);
-        inputFields[i * 4 + 1].setValue(set.startMinute[i]);
-        inputFields[i * 4 + 2].setValue(set.endHour[i]);
-        inputFields[i * 4 + 3].setValue(set.endMinute[i]);
+        digitFields[i * 4].setValue(set.startHour[i]);
+        digitFields[i * 4 + 1].setValue(set.startMinute[i]);
+        digitFields[i * 4 + 2].setValue(set.endHour[i]);
+        digitFields[i * 4 + 3].setValue(set.endMinute[i]);
     }
+    textFields[0].setIndex(set.enabled ? 0 : 1);
+
     inputHandler();
 }
 
 void TimeCtrl::inputHandler()
 {
-    int                 beginT;
-    int                 endT;
-    vector<InputDigit> &inputFields = getInputFields();
+    int beginT;
+    int endT;
 
     for (int i = 0; i < 3; i++)
     {
-        beginT = inputFields[i * 4].getValue() * 60 + inputFields[i * 4 + 1].getValue();
-        endT   = inputFields[i * 4 + 2].getValue() * 60 + inputFields[i * 4 + 3].getValue();
+        beginT = digitFields[i * 4].getValue() * 60 + digitFields[i * 4 + 1].getValue();
+        endT   = digitFields[i * 4 + 2].getValue() * 60 + digitFields[i * 4 + 3].getValue();
         if (endT < beginT)
             dayPlusSign[i].setDisplayMode(DM_SHOW);
         else
             dayPlusSign[i].setDisplayMode(DM_HIDE);
 
         if (beginT == 0 && endT % 60 == 0)
-            inputFields[i * 4 + 2].setLimit(0, 24);
+            digitFields[i * 4 + 2].setLimit(0, 24);
         else
-            inputFields[i * 4 + 2].setLimit(0, 23);
+            digitFields[i * 4 + 2].setLimit(0, 23);
     }
 }
 
