@@ -35,6 +35,7 @@ struct Settings_t
     int startMinute[3] = {-1, -1, -1};
     int endHour[3]     = {-1, -1, -1};
     int endMinute[3]   = {-1, -1, -1};
+    bool heatKeepEnabled = true;
     int waterMinSec    = -1;
     int waterMaxSec    = -1;
     int pumpOnDuration = -1;
@@ -47,4 +48,21 @@ struct State_t
     int   tempC2 = 0; // 用水端水温
     float flow   = 0;
     bool  pumpOn = 0;
+};
+
+// 对应Settings_t中的各个字段，用于标识哪个字段被更新
+enum class SettingsRev_t
+{
+    NONE,
+    START_TIME_1,
+    START_TIME_2,
+    START_TIME_3,
+    END_TIME_1,
+    END_TIME_2,
+    END_TIME_3,
+    HEAT_KEEP_ENABLED,
+    WATER_MIN_SEC,
+    WATER_MAX_SEC,
+    PUMP_ON_DURATION,
+    DEMAND_TEMP
 };

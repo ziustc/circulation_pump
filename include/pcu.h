@@ -21,7 +21,7 @@ public:
     Settings_t getSettings();
     State_t    getState();
 
-    void onMqttUpdate(Settings_t set);
+    void onMqttUpdate(Settings_t set, SettingsRev_t revisedField);
     void onMqttUpdate(State_t state);
     void onScreenUpdate(Settings_t set);
     void onMqttPumpOn(bool setOn);

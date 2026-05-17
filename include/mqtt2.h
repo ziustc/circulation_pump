@@ -90,7 +90,7 @@ private:
 };
 
 // MqttManager回调PCU的函数类型
-typedef void (*OnCmdCB_t)(Settings_t set);
+typedef void (*OnCmdCB_t)(Settings_t set, SettingsRev_t revisedField);
 typedef void (*OnStateCB_t)(State_t state);
 typedef void (*OnSwitchCB_t)(bool setOn);
 

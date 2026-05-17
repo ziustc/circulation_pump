@@ -42,7 +42,7 @@ private:
     RealtimeIndicator realtimeInd;
     FPSIndicator      fpsInd;
 
-    vector<CtrlPanel *>        ctrlPanels;
+    vector<ICtrlPanel *>       ctrlPanels;
     vector<Panel *>            panels[4];
     int                        curPanel = -1;
     int                        curTime;

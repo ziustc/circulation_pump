@@ -110,6 +110,9 @@ CtrlPanel<numDigit, numText>::CtrlPanel()
     for (int i = 0; i < numText; i++)
         inputFields[idx++] = &textFields[i];
 
+    for (Pattern *field : inputFields)
+        registerPattern(field);
+
     isSelected    = false;
     isActive      = false;
     selectedField = -1;
@@ -377,7 +380,7 @@ TimeCtrl::TimeCtrl()
         digitFields[i * 4 + 2].setPosition(nullptr, 7 + 27 * 2, 60 + i * 28);
         digitFields[i * 4 + 3].setPosition(nullptr, 7 + 27 * 3, 60 + i * 28);
 
-        ((InputDigit)digitFields[i * 4 + 0]).setLimit(0, 23);
+        digitFields[i * 4 + 0].setLimit(0, 23);
         digitFields[i * 4 + 1].setLimit(0, 59);
         digitFields[i * 4 + 2].setLimit(0, 23);
         digitFields[i * 4 + 3].setLimit(0, 59);
@@ -396,7 +399,13 @@ TimeCtrl::TimeCtrl()
         dayPlusSign[i].setCode("+1");
         dayPlusSign[i].setPosition(nullptr, 112, 55 + i * 28);
         dayPlusSign[i].setDisplayMode(DM_HIDE);
+        registerPattern(&dayPlusSign[i]);
     }
+
+    // 重新安排输入顺序：先保温启用/禁用，再各时段（与父类 CtrlPanel 默认设置的“先数字后文本”相反）
+    inputFields[0] = &textFields[0];
+    for (int i = 0; i < 12; i++)
+        inputFields[i + 1] = &digitFields[i];
 }
 
 void TimeCtrl::drawSpecific()
@@ -408,7 +417,7 @@ void TimeCtrl::drawSpecific()
 
     // 固定文字图案
     u8g2->setFont(FONT_CHN_16);
-    u8g2->drawUTF8(getX() + 10, getY() + 30, "水温保持时段：");
+    u8g2->drawUTF8(getX() + 10, getY() + 30, "保温：");
     u8g2->setFont(FONT_INPUT_DIGIT);
     for (int i = 0; i < 3; i++)
     {

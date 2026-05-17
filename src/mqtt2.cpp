@@ -211,6 +211,7 @@ void MqttCore::onReceive(const char *topic, const uint8_t *payload, unsigned int
 
 #define MQTT_START_TIME  "pump_st_"
 #define MQTT_END_TIME    "pump_et_"
+#define MQTT_HEAT_KEEP   "pump_keept"
 #define MQTT_WATER_MIN   "pump_wmin"
 #define MQTT_WATER_MAX   "pump_wmax"
 #define MQTT_DURATION    "pump_dur"
@@ -278,6 +279,7 @@ void MqttManager::sendDiscoveries()
         snprintf(cmd_tpl, sizeof(cmd_tpl), "{\"%s\": \"{{ value }}\"}", entity_id);
         _mqttCore.sendDiscoveryTime(name, entity_id, "mdi:calendar-clock", false, true, val_tpl, cmd_tpl, false);
     }
+    _mqttCore.sendDiscoverySwitch("保温", MQTT_HEAT_KEEP, "mdi:sun-thermometer", false);
 
     // 传感器state的Discovery
 
@@ -302,6 +304,7 @@ void MqttManager::sendSettings(Settings_t &pumpSettings)
         snprintf(id, sizeof(id), "%s%d", MQTT_END_TIME, i + 1);
         settings[id] = buf;
     }
+    settings[MQTT_HEAT_KEEP] = pumpSettings.heatKeepEnabled ? "ON" : "OFF";
     settings[MQTT_WATER_MIN]   = pumpSettings.waterMinSec;
     settings[MQTT_WATER_MAX]   = pumpSettings.waterMaxSec;
     settings[MQTT_DURATION]    = pumpSettings.pumpOnDuration;
@@ -340,10 +343,8 @@ void MqttManager::AnalyzeMsg(const char *topic, JsonObject &obj)
 
 void MqttManager::handleCmd(const JsonObject &obj)
 {
-    Settings_t set;
-    char       buf[256];
-
-    serializeJson(obj, buf, sizeof(buf));
+    Settings_t    set;
+    SettingsRev_t revisedField = SettingsRev_t::NONE;
 
     // 如果收到开关泵指令
     if (obj[MQTT_PUMP_ON].is<String>())
@@ -369,7 +370,8 @@ void MqttManager::handleCmd(const JsonObject &obj)
             {
                 set.startHour[i]   = h;
                 set.startMinute[i] = m;
-                if (onCmd_cb) onCmd_cb(set);
+                revisedField       = static_cast<SettingsRev_t>(static_cast<int>(SettingsRev_t::START_TIME_1) + i);
+                if (onCmd_cb) onCmd_cb(set, revisedField);
             }
             return;
         }
@@ -382,34 +384,41 @@ void MqttManager::handleCmd(const JsonObject &obj)
             {
                 set.endHour[i]   = h;
                 set.endMinute[i] = m;
-                if (onCmd_cb) onCmd_cb(set);
+                revisedField     = static_cast<SettingsRev_t>(static_cast<int>(SettingsRev_t::END_TIME_1) + i);
+                if (onCmd_cb) onCmd_cb(set, revisedField);
             }
             return;
         }
+    }
+    if (obj[MQTT_HEAT_KEEP].is<String>())
+    {
+        set.heatKeepEnabled = obj[MQTT_HEAT_KEEP] == "ON" ? true : false;
+        if (onCmd_cb) onCmd_cb(set, SettingsRev_t::HEAT_KEEP_ENABLED);
+        return;
     }
 
     if (obj[MQTT_WATER_MIN].is<int>())
     {
         set.waterMinSec = obj[MQTT_WATER_MIN].as<int>();
-        if (onCmd_cb) onCmd_cb(set);
+        if (onCmd_cb) onCmd_cb(set, SettingsRev_t::WATER_MIN_SEC);
         return;
     }
     if (obj[MQTT_WATER_MAX].is<int>())
     {
         set.waterMaxSec = obj[MQTT_WATER_MAX].as<int>();
-        if (onCmd_cb) onCmd_cb(set);
+        if (onCmd_cb) onCmd_cb(set, SettingsRev_t::WATER_MAX_SEC);
         return;
     }
     if (obj[MQTT_DURATION].is<int>())
     {
         set.pumpOnDuration = obj[MQTT_DURATION].as<int>();
-        if (onCmd_cb) onCmd_cb(set);
+        if (onCmd_cb) onCmd_cb(set, SettingsRev_t::PUMP_ON_DURATION);
         return;
     }
     if (obj[MQTT_DEMAND_TEMP].is<int>())
     {
         set.demandTemp = obj[MQTT_DEMAND_TEMP].as<int>();
-        if (onCmd_cb) onCmd_cb(set);
+        if (onCmd_cb) onCmd_cb(set, SettingsRev_t::DEMAND_TEMP);
         return;
     }
 }

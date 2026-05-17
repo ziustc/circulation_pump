@@ -58,24 +58,35 @@ private:
 //                      CtrlPanel                         //
 ////////////////////////////////////////////////////////////
 
+class ICtrlPanel : public Panel
+{
+public:
+    virtual void setSelected(bool sel)  = 0;
+    virtual bool getSelected()          = 0;
+    virtual void setActive(bool active) = 0;
+    virtual bool getActive()            = 0;
+    virtual void switchInput()          = 0;
+    virtual void inputUp()              = 0;
+    virtual void inputDown()            = 0;
+};
+
 template <size_t numDigit, size_t numText>
-class CtrlPanel : public Panel
+class CtrlPanel : public ICtrlPanel
 {
 public:
     CtrlPanel();
-    void setSelected(bool sel);
-    bool getSelected();
-    void setActive(bool active);
-    bool getActive();
-    void switchInput();
-    void inputUp();
-    void inputDown();
+    void setSelected(bool sel) override;
+    bool getSelected() override;
+    void setActive(bool active) override;
+    bool getActive() override;
+    void switchInput() override;
+    void inputUp() override;
+    void inputDown() override;
 
 protected:
-    array<InputDigit, numDigit> digitFields;
-    array<SelectText, numText>  textFields;
-
-    Pattern *inputFields[numDigit + numText];
+    array<InputDigit, numDigit>          digitFields;
+    array<SelectText, numText>           textFields;
+    array<Pattern *, numDigit + numText> inputFields;
 
 private:
     bool         isSelected;

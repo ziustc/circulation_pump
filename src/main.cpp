@@ -103,7 +103,7 @@ void setup(void)
 
     // 初始化MQTT
     mqtt.init();
-    mqtt.setOnCmdCB([](Settings_t set) { pcu.onMqttUpdate(set); });
+    mqtt.setOnCmdCB([](Settings_t set, SettingsRev_t rf) { pcu.onMqttUpdate(set, rf); });
     mqtt.setOnStateCB([](State_t state) { pcu.onMqttUpdate(state); });
     mqtt.setOnSwitchCB([](bool setOn) { pcu.onMqttPumpOn(setOn); });
     XLOG("Init", "MQTT initialized.");
@@ -152,12 +152,12 @@ void loop(void)
     {
         // mqtt.sendMsg("homeassistant/pump/config", "信息");
         State_t state = pcu.getState();
-        XLOG("PCU",
-             "State: tempC=%d C, tempC2=%d C, flow=%.1f L/min, pumpOn=%s",
-             state.tempC,
-             state.tempC2,
-             state.flow,
-             state.pumpOn ? "ON" : "OFF");
+        // XLOG("PCU",
+        //      "State: tempC=%d C, tempC2=%d C, flow=%.1f L/min, pumpOn=%s",
+        //      state.tempC,
+        //      state.tempC2,
+        //      state.flow,
+        //      state.pumpOn ? "ON" : "OFF");
         lastMillis = now;
     }
 }
