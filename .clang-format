@@ -108,7 +108,7 @@ AlwaysBreakBeforeMultilineStrings: false
 # - No: 永远不对开发者的风格作处理
 # - MultiLine: 建议值, 即仅在开发者写的模板声明(包括函数)跨越多行时, 进行换行, 否则维持原样
 # - Yes: 不管如何都进行分行, 不建议
-AlwaysBreakTemplateDeclarations: MultiLine
+AlwaysBreakTemplateDeclarations: Yes
 # 属性宏列表, 自定义, 用于语言扩展或静态分析注解, 可忽略
 AttributeMacros:
   - __capability

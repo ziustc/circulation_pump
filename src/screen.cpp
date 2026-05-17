@@ -206,6 +206,7 @@ Settings_t Screen::wrapupSettings()
         ret.endHour[i]     = timeSettings.endHour[i];
         ret.endMinute[i]   = timeSettings.endMinute[i];
     }
+    ret.heatKeepEnabled = timeSettings.enabled;
     ret.waterMinSec    = waterSettings.minSec;
     ret.waterMaxSec    = waterSettings.maxSec;
     ret.pumpOnDuration = waterSettings.pumpOnDuration;
@@ -227,6 +228,7 @@ void Screen::importSettings(Settings_t set)
         timeSettings.endHour[i]     = set.endHour[i];
         timeSettings.endMinute[i]   = set.endMinute[i];
     }
+    timeSettings.enabled        = set.heatKeepEnabled;
     waterSettings.minSec         = set.waterMinSec;
     waterSettings.maxSec         = set.waterMaxSec;
     waterSettings.pumpOnDuration = set.pumpOnDuration;

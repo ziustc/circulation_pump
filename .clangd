@@ -1,0 +1,21 @@
+CompileFlags:
+  # BuiltinHeaders: QueryDriver needs clangd 20+; use --query-driver in .vscode/settings.json instead.
+  # GCC/xtensa flags from compile_commands.json that clangd does not understand
+  Remove:
+    - -mlongcalls
+    - -mdisable-hardware-atomics
+    - -fstrict-volatile-bitfields
+    - -fno-tree-switch-conversion
+    - -fno-jump-tables
+    - -freorder-blocks
+Diagnostics:
+  Suppress: [pp_expects_filename, unused-includes]
+---
+If:
+  PathMatch: .*\.ino
+CompileFlags:
+  Add:
+    - "-x"
+    - "c++"
+    - "-include"
+    - "Arduino.h"

@@ -33,8 +33,9 @@ void PumpCtrlUnit::init()
         }
         _settings.waterMinSec    = 2;
         _settings.waterMaxSec    = 6;
-        _settings.pumpOnDuration = 4;
-        _settings.demandTemp     = 35;
+        _settings.pumpOnDuration  = 4;
+        _settings.demandTemp      = 35;
+        _settings.heatKeepEnabled = true;
     }
 
     _screen.importSettings(_settings);
@@ -82,20 +83,48 @@ Settings_t PumpCtrlUnit::getSettings() { return _settings; }
 
 State_t PumpCtrlUnit::getState() { return _state; }
 
-void PumpCtrlUnit::onMqttUpdate(Settings_t set)
+void PumpCtrlUnit::onMqttUpdate(Settings_t set, SettingsRev_t revisedField)
 {
-    // 更新设置参数
-    for (int i = 0; i < 3; i++)
+    if (revisedField == SettingsRev_t::NONE) return;
+
+    switch (revisedField)
     {
-        if (set.startHour[i] >= 0) _settings.startHour[i] = set.startHour[i];
-        if (set.startMinute[i] >= 0) _settings.startMinute[i] = set.startMinute[i];
-        if (set.endHour[i] >= 0) _settings.endHour[i] = set.endHour[i];
-        if (set.endMinute[i] >= 0) _settings.endMinute[i] = set.endMinute[i];
+    case SettingsRev_t::START_TIME_1:
+    case SettingsRev_t::START_TIME_2:
+    case SettingsRev_t::START_TIME_3:
+    {
+        int i = static_cast<int>(revisedField) - static_cast<int>(SettingsRev_t::START_TIME_1);
+        _settings.startHour[i]   = set.startHour[i];
+        _settings.startMinute[i] = set.startMinute[i];
+        break;
     }
-    if (set.waterMinSec >= 0) _settings.waterMinSec = set.waterMinSec;
-    if (set.waterMaxSec >= 0) _settings.waterMaxSec = set.waterMaxSec;
-    if (set.pumpOnDuration >= 0) _settings.pumpOnDuration = set.pumpOnDuration;
-    if (set.demandTemp >= 0) _settings.demandTemp = set.demandTemp;
+    case SettingsRev_t::END_TIME_1:
+    case SettingsRev_t::END_TIME_2:
+    case SettingsRev_t::END_TIME_3:
+    {
+        int i = static_cast<int>(revisedField) - static_cast<int>(SettingsRev_t::END_TIME_1);
+        _settings.endHour[i]   = set.endHour[i];
+        _settings.endMinute[i] = set.endMinute[i];
+        break;
+    }
+    case SettingsRev_t::HEAT_KEEP_ENABLED:
+        _settings.heatKeepEnabled = set.heatKeepEnabled;
+        break;
+    case SettingsRev_t::WATER_MIN_SEC:
+        _settings.waterMinSec = set.waterMinSec;
+        break;
+    case SettingsRev_t::WATER_MAX_SEC:
+        _settings.waterMaxSec = set.waterMaxSec;
+        break;
+    case SettingsRev_t::PUMP_ON_DURATION:
+        _settings.pumpOnDuration = set.pumpOnDuration;
+        break;
+    case SettingsRev_t::DEMAND_TEMP:
+        _settings.demandTemp = set.demandTemp;
+        break;
+    default:
+        return;
+    }
 
     // 更新屏幕显示并反馈确认（有可能因为输入超出范围而被修正）
     _screen.importSettings(_settings);
@@ -230,6 +259,9 @@ void PumpCtrlUnit::readTime()
 
 void PumpCtrlUnit::tempCriteria()
 {
+    // 若保温总开关关闭，则不参与温度控制
+    if (!_settings.heatKeepEnabled) return;
+
     // 先判断上次是否为超时强制关泵，或手动强制关泵，若是则判断是否已过恢复时间，已到则恢复正常状态
     if (_pumpOffReason == PumpOffReason_t::TEMP_OVERTIME || _pumpOffReason == PumpOffReason_t::TEMP_BUTTON_OFF)
     {
@@ -327,6 +359,16 @@ void PumpCtrlUnit::stopCriteria()
     // 若按保温时段保温开泵，则按温度条件关泵
     if (_pumpOnReason == PumpOnReason_t::TEMP_CRITERIA)
     {
+        // 若在保温过程中，保温总开关关闭，则关泵
+        if (!_settings.heatKeepEnabled)
+        {
+            _pumpOnReason  = PumpOnReason_t::OFF;
+            _pumpOffReason = PumpOffReason_t::NORMAL;
+            switchPump(false);
+            return;
+        }
+
+        // 若温度达到设定值，则关泵
         if (_state.tempC2 >= _settings.demandTemp + TEMP_UPPER_MARGIN)
         {
             _pumpOnReason  = PumpOnReason_t::OFF;
@@ -334,7 +376,9 @@ void PumpCtrlUnit::stopCriteria()
             switchPump(false);
             return;
         }
-        if (millis() - _pumpOnMillis >= TEMP_OVERTIME_LIMIT * 60 * 1000) // 若温控开泵超过1小时，强制关泵以防过热
+
+        // 若温控开泵超过1小时，强制关泵以防过热
+        if (millis() - _pumpOnMillis >= TEMP_OVERTIME_LIMIT * 60 * 1000)
         {
             _pumpOnReason  = PumpOnReason_t::OFF;
             _pumpOffReason = PumpOffReason_t::TEMP_OVERTIME;

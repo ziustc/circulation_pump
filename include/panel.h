@@ -2,7 +2,7 @@
 #define PANEL_H
 
 #include <stdint.h>
-#include <vector>
+#include <array>
 #include <deque>
 #include "U8g2lib.h"
 #include "pattern.h"
@@ -11,10 +11,11 @@ using namespace std;
 
 struct TimeSettings
 {
-    int startHour[3];
-    int startMinute[3];
-    int endHour[3];
-    int endMinute[3];
+    int  startHour[3];
+    int  startMinute[3];
+    int  endHour[3];
+    int  endMinute[3];
+    bool enabled;
 };
 
 struct WaterSettings
@@ -57,30 +58,44 @@ private:
 //                      CtrlPanel                         //
 ////////////////////////////////////////////////////////////
 
-class CtrlPanel : public Panel
+class ICtrlPanel : public Panel
+{
+public:
+    virtual void setSelected(bool sel)  = 0;
+    virtual bool getSelected()          = 0;
+    virtual void setActive(bool active) = 0;
+    virtual bool getActive()            = 0;
+    virtual void switchInput()          = 0;
+    virtual void inputUp()              = 0;
+    virtual void inputDown()            = 0;
+};
+
+template <size_t numDigit, size_t numText>
+class CtrlPanel : public ICtrlPanel
 {
 public:
     CtrlPanel();
-    void setSelected(bool sel);
-    bool getSelected();
-    void setActive(bool active);
-    bool getActive();
-    void switchInput();
-    void inputUp();
-    void inputDown();
+    void setSelected(bool sel) override;
+    bool getSelected() override;
+    void setActive(bool active) override;
+    bool getActive() override;
+    void switchInput() override;
+    void inputUp() override;
+    void inputDown() override;
 
 protected:
-    vector<InputDigit> &getInputFields();
+    array<InputDigit, numDigit>          digitFields;
+    array<SelectText, numText>           textFields;
+    array<Pattern *, numDigit + numText> inputFields;
 
 private:
-    bool               isSelected;
-    bool               isActive;
-    vector<InputDigit> inputFields;
-    int                selectedField = -1;
-    void virtual inputHandler()      = 0;
+    bool         isSelected;
+    bool         isActive;
+    int          selectedField  = -1;
+    virtual void inputHandler() = 0;
 };
 
-class WaterCtrl : public CtrlPanel
+class WaterCtrl : public CtrlPanel<3, 0>
 {
 public:
     WaterCtrl();
@@ -92,7 +107,7 @@ private:
     void drawSpecific() override;
 };
 
-class TempCtrl : public CtrlPanel
+class TempCtrl : public CtrlPanel<1, 0>
 {
 public:
     TempCtrl();
@@ -104,7 +119,7 @@ private:
     void drawSpecific() override;
 };
 
-class TimeCtrl : public CtrlPanel
+class TimeCtrl : public CtrlPanel<12, 1>
 {
 public:
     TimeCtrl();
@@ -112,9 +127,9 @@ public:
     void         setData(TimeSettings set);
 
 private:
-    vector<Pattern> dayPlusSign;
-    void            inputHandler() override;
-    void            drawSpecific() override;
+    Pattern dayPlusSign[3];
+    void    inputHandler() override;
+    void    drawSpecific() override;
 };
 
 ////////////////////////////////////////////////////////////

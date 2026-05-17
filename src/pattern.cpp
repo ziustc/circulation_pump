@@ -26,6 +26,8 @@ void Pattern::setU8G2(U8G2 *u8g2Ptr) { u8g2 = u8g2Ptr; }
 
 void Pattern::setFont(uint8_t *font) { fontSet = font; }
 
+void Pattern::setType(PatternType type) { patternType = type; }
+
 void Pattern::setPosition(U8G2 *u8g2Ptr, uint16_t x, uint16_t y)
 {
     u8g2 = u8g2Ptr;
@@ -244,5 +246,44 @@ void MultiSymbol::draw()
         lastRollingTime = currentTime;
     }
     setCode((char *)(&symbolOffset));
+    drawCore();
+}
+
+////////////////////////////////////////////////////////////
+//                     SelectText                         //
+////////////////////////////////////////////////////////////
+
+SelectText::SelectText(uint8_t *font)
+: Pattern(font, PT_FONT)
+{
+    setTextList(nullptr, 0);
+}
+
+void SelectText::setTextList(const char **textListPtr, int count)
+{
+    textList  = textListPtr;
+    textCount = count;
+    selIndex  = 0;
+}
+
+void SelectText::increase() { selIndex = (selIndex + 1) % textCount; }
+
+void SelectText::decrease() { selIndex = (selIndex - 1) % textCount; }
+
+void SelectText::setIndex(int idx)
+{
+    if (idx >= textCount)
+        selIndex = textCount - 1;
+    else if (idx < 0)
+        selIndex = 0;
+    else
+        selIndex = idx;
+}
+
+int SelectText::getIndex() { return selIndex; }
+
+void SelectText::draw()
+{
+    setCode(textList[selIndex]);
     drawCore();
 }
