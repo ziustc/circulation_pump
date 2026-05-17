@@ -31,8 +31,8 @@ void PumpCtrlUnit::init()
             _settings.endHour[i]     = 0;
             _settings.endMinute[i]   = 0;
         }
-        _settings.waterMinSec    = 2;
-        _settings.waterMaxSec    = 6;
+        _settings.waterMinSec     = 2;
+        _settings.waterMaxSec     = 6;
         _settings.pumpOnDuration  = 4;
         _settings.demandTemp      = 35;
         _settings.heatKeepEnabled = true;
@@ -92,36 +92,43 @@ void PumpCtrlUnit::onMqttUpdate(Settings_t set, SettingsRev_t revisedField)
     case SettingsRev_t::START_TIME_1:
     case SettingsRev_t::START_TIME_2:
     case SettingsRev_t::START_TIME_3:
-    {
-        int i = static_cast<int>(revisedField) - static_cast<int>(SettingsRev_t::START_TIME_1);
-        _settings.startHour[i]   = set.startHour[i];
-        _settings.startMinute[i] = set.startMinute[i];
-        break;
-    }
+        {
+            int i = static_cast<int>(revisedField) - static_cast<int>(SettingsRev_t::START_TIME_1);
+
+            _settings.startHour[i]   = set.startHour[i];
+            _settings.startMinute[i] = set.startMinute[i];
+            break;
+        }
     case SettingsRev_t::END_TIME_1:
     case SettingsRev_t::END_TIME_2:
     case SettingsRev_t::END_TIME_3:
-    {
-        int i = static_cast<int>(revisedField) - static_cast<int>(SettingsRev_t::END_TIME_1);
-        _settings.endHour[i]   = set.endHour[i];
-        _settings.endMinute[i] = set.endMinute[i];
-        break;
-    }
+        {
+            int i = static_cast<int>(revisedField) - static_cast<int>(SettingsRev_t::END_TIME_1);
+
+            _settings.endHour[i]   = set.endHour[i];
+            _settings.endMinute[i] = set.endMinute[i];
+            break;
+        }
     case SettingsRev_t::HEAT_KEEP_ENABLED:
         _settings.heatKeepEnabled = set.heatKeepEnabled;
         break;
+
     case SettingsRev_t::WATER_MIN_SEC:
         _settings.waterMinSec = set.waterMinSec;
         break;
+
     case SettingsRev_t::WATER_MAX_SEC:
         _settings.waterMaxSec = set.waterMaxSec;
         break;
+
     case SettingsRev_t::PUMP_ON_DURATION:
         _settings.pumpOnDuration = set.pumpOnDuration;
         break;
+
     case SettingsRev_t::DEMAND_TEMP:
         _settings.demandTemp = set.demandTemp;
         break;
+
     default:
         return;
     }

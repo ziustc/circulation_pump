@@ -207,10 +207,10 @@ Settings_t Screen::wrapupSettings()
         ret.endMinute[i]   = timeSettings.endMinute[i];
     }
     ret.heatKeepEnabled = timeSettings.enabled;
-    ret.waterMinSec    = waterSettings.minSec;
-    ret.waterMaxSec    = waterSettings.maxSec;
-    ret.pumpOnDuration = waterSettings.pumpOnDuration;
-    ret.demandTemp     = tempSettings;
+    ret.waterMinSec     = waterSettings.minSec;
+    ret.waterMaxSec     = waterSettings.maxSec;
+    ret.pumpOnDuration  = waterSettings.pumpOnDuration;
+    ret.demandTemp      = tempSettings;
 
     return ret;
 }
@@ -228,11 +228,13 @@ void Screen::importSettings(Settings_t set)
         timeSettings.endHour[i]     = set.endHour[i];
         timeSettings.endMinute[i]   = set.endMinute[i];
     }
-    timeSettings.enabled        = set.heatKeepEnabled;
+    timeSettings.enabled = set.heatKeepEnabled;
+
     waterSettings.minSec         = set.waterMinSec;
     waterSettings.maxSec         = set.waterMaxSec;
     waterSettings.pumpOnDuration = set.pumpOnDuration;
-    tempSettings                 = set.demandTemp;
+
+    tempSettings = set.demandTemp;
 
     timePanel.setData(timeSettings);
     waterPanel.setData(waterSettings);

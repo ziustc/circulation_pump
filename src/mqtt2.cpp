@@ -304,7 +304,7 @@ void MqttManager::sendSettings(Settings_t &pumpSettings)
         snprintf(id, sizeof(id), "%s%d", MQTT_END_TIME, i + 1);
         settings[id] = buf;
     }
-    settings[MQTT_HEAT_KEEP] = pumpSettings.heatKeepEnabled ? "ON" : "OFF";
+    settings[MQTT_HEAT_KEEP]   = pumpSettings.heatKeepEnabled ? "ON" : "OFF";
     settings[MQTT_WATER_MIN]   = pumpSettings.waterMinSec;
     settings[MQTT_WATER_MAX]   = pumpSettings.waterMaxSec;
     settings[MQTT_DURATION]    = pumpSettings.pumpOnDuration;
