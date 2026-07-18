@@ -1,8 +1,4 @@
 {
-    "clangd.arguments": [
-        "--query-driver=C:/Users/ziustc/.platformio/packages/toolchain-*/bin/*,C:/Users/ziustc/.platformio/packages/tool-*/bin/*",
-        "--compile-commands-dir=h:/Intelli_Home/3_Chip_Programming/Circulation_Pump/.cache/clangd"
-    ],
     "files.associations": {
         "typeinfo": "cpp",
         "array": "cpp",
@@ -13,5 +9,10 @@
         "vector": "cpp",
         "string_view": "cpp",
         "initializer_list": "cpp"
-    }
+    },
+    "clangd.arguments": [
+        "--compile-commands-dir=h:/Intelli_Home/3_Chip_Programming/Circulation_Pump/.cache/clangd",
+        "--query-driver=C:/Users/ziustc/.platformio/packages/toolchain-*/bin/*,C:/Users/ziustc/.platformio/packages/tool-*/bin/*"
+    ],
+    "workbench.activityBar.orientation": "vertical"
 }

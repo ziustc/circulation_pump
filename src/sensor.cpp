@@ -105,7 +105,7 @@ void TempSensor::init()
     analogSetPinAttenuation(tempPinNo, ADC_11db);
 }
 
-int TempSensor::getTempC()
+float TempSensor::getTempC()
 {
     int sumADC = 0;
     for (int i = 0; i < ADC_ARR_LEN; i++)

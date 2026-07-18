@@ -662,10 +662,15 @@ void TempCurve::drawSpecific()
     u8g2->drawStr(getX() + 0, getY() + 4 + 4, "40");
 
     // pumpOn坐标轴
-    u8g2->drawLine(getX() + 18, getY() + 75, getX() + 123, getY() + 75); // X轴
-    u8g2->drawLine(getX() + 18, getY() + 75, getX() + 18, getY() + 58);  // Y轴
+    u8g2->drawLine(getX() + 18, getY() + 75, getX() + 123, getY() + 75);                    // X轴
+    u8g2->drawLine(getX() + 18, getY() + 75, getX() + 18, getY() + 58);                     // Y轴
+    u8g2->drawLine(getX() + 123 - 5 - 40, getY() + 75, getX() + 123 - 5 - 40, getY() + 77); // 刻度线
+    u8g2->drawLine(getX() + 123 - 5 - 80, getY() + 75, getX() + 123 - 5 - 80, getY() + 77); // 刻度线
     u8g2->setFont(FONT_SMALL_ENG);
     u8g2->drawStr(getX() + 0, getY() + 70, "ON");
+    u8g2->drawStr(getX() + 123 - 5 - 15, getY() + 87, "0min");
+    u8g2->drawStr(getX() + 123 - 5 - 60, getY() + 87, "-1Omin");
+    u8g2->drawStr(getX() + 123 - 5 - 100, getY() + 87, "-2Omin");
 
     if (tempPoints.size() < 2) return;
 

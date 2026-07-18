@@ -38,7 +38,7 @@ class TempSensor
 public:
     TempSensor(int tempPin);
     void init();
-    int  getTempC();
+    float getTempC();
     void loop();
 
 private:

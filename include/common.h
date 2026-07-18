@@ -17,7 +17,7 @@
 // 控制器常量
 #define TEMP_SETTING_LOWEST    20  // 设定温度最低值
 #define TEMP_SETTING_HIGHEST   45  // 设定温度最高值
-#define TEMP_LOWER_MARGIN      0   // 单位：°C，温控低于设定值多少即开泵
+#define TEMP_LOWER_MARGIN      2   // 单位：°C，温控低于设定值多少即开泵
 #define TEMP_UPPER_MARGIN      2   // 单位：°C，温控超过设定值多少即关泵
 #define TEMP_OVERTIME_LIMIT    10  // 单位：分钟，温控开泵超过多少分钟强制关泵
 #define TEMP_OVERTIME_RECOVERY 10  // 单位：分钟，温控强制关泵后多少分钟允许再次开泵，单位分钟
@@ -31,20 +31,20 @@
 
 struct Settings_t
 {
-    int startHour[3]   = {-1, -1, -1};
-    int startMinute[3] = {-1, -1, -1};
-    int endHour[3]     = {-1, -1, -1};
-    int endMinute[3]   = {-1, -1, -1};
+    int  startHour[3]    = {-1, -1, -1};
+    int  startMinute[3]  = {-1, -1, -1};
+    int  endHour[3]      = {-1, -1, -1};
+    int  endMinute[3]    = {-1, -1, -1};
     bool heatKeepEnabled = true;
-    int waterMinSec    = -1;
-    int waterMaxSec    = -1;
-    int pumpOnDuration = -1;
-    int demandTemp     = -1;
+    int  waterMinSec     = -1;
+    int  waterMaxSec     = -1;
+    int  pumpOnDuration  = -1;
+    int  demandTemp      = -1;
 };
 
 struct State_t
 {
-    int   tempC  = 0; // 泵体水温
+    float tempC  = 0; // 泵体水温
     int   tempC2 = 0; // 用水端水温
     float flow   = 0;
     bool  pumpOn = 0;

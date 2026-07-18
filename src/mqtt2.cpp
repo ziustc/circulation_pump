@@ -220,6 +220,7 @@ void MqttCore::onReceive(const char *topic, const uint8_t *payload, unsigned int
 #define MQTT_STATE_WATER     "pump_s_wt"
 #define MQTT_STATE_EXT_WATER "pump_s_ewt"
 #define MQTT_STATE_FLOW      "pump_s_flow"
+#define MQTT_STATE_WIFI      "pump_s_wifi"
 #define MQTT_PUMP_ON         "pump_s_on"
 
 MqttManager::MqttManager() { managerInstance = this; }
@@ -233,7 +234,7 @@ void MqttManager::init()
                             .id_abbr      = MQTT_DEV_ABBR,
                             .manufacturer = "ZiUtility",
                             .model        = "ESP32-S3-Pump",
-                            .viaDevice    = "respi_gateway",
+                            .viaDevice    = "",
                             .swVersion    = SW_VERSION,
                             .hwVersion    = "1.0.0"};
 
@@ -284,8 +285,9 @@ void MqttManager::sendDiscoveries()
     // 传感器state的Discovery
 
     _mqttCore.sendDiscoverySensor(
-        "当前泵体水温", MQTT_STATE_WATER, "mdi:water-thermometer", "measurement", "°C", false);
+        "当前水温-泵体", MQTT_STATE_WATER, "mdi:water-thermometer", "measurement", "°C", false);
     _mqttCore.sendDiscoverySensor("当前流量", MQTT_STATE_FLOW, "mdi:waves-arrow-right", "measurement", "L/min", false);
+    _mqttCore.sendDiscoverySensor("WiFi强度-泵体", MQTT_STATE_WIFI, "mdi:wifi", "measurement", "dBm", false);
 }
 
 void MqttManager::sendSettings(Settings_t &pumpSettings)
@@ -317,8 +319,9 @@ void MqttManager::sendState(State_t &pumpState)
 {
     JsonDocument states;
 
-    states[MQTT_STATE_WATER] = pumpState.tempC;
-    states[MQTT_STATE_FLOW]  = pumpState.flow;
+    states[MQTT_STATE_WATER] = (int)(pumpState.tempC * 10) / 10.0f;
+    states[MQTT_STATE_FLOW]  = (int)(pumpState.flow * 100) / 100.0f;
+    states[MQTT_STATE_WIFI]  = WiFi.RSSI();
     states[MQTT_PUMP_ON]     = pumpState.pumpOn ? "ON" : "OFF";
 
     _mqttCore.sendState(states);

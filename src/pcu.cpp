@@ -318,8 +318,11 @@ void PumpCtrlUnit::tempCriteria()
         }
     }
 
+    // 若不在保温时间段内，则不参与温度控制
+    if (!inTimeRange) return;
+
     // 若在保温时间段内且温度未达设定值，则开启水泵
-    if (inTimeRange && (_state.tempC2 < _settings.demandTemp - TEMP_LOWER_MARGIN) && !_state.pumpOn)
+    if (_state.tempC2 < _settings.demandTemp - TEMP_LOWER_MARGIN)
     {
         _pumpOnReason = PumpOnReason_t::TEMP_CRITERIA;
         switchPump(true);
@@ -376,7 +379,7 @@ void PumpCtrlUnit::stopCriteria()
         }
 
         // 若温度达到设定值，则关泵
-        if (_state.tempC2 >= _settings.demandTemp + TEMP_UPPER_MARGIN)
+        if (_state.tempC2 > _settings.demandTemp + TEMP_UPPER_MARGIN)
         {
             _pumpOnReason  = PumpOnReason_t::OFF;
             _pumpOffReason = PumpOffReason_t::NORMAL;
@@ -384,7 +387,7 @@ void PumpCtrlUnit::stopCriteria()
             return;
         }
 
-        // 若温控开泵超过1小时，强制关泵以防过热
+        // 若温控开泵超过TEMP_OVERTIME_LIMIT分钟，强制关泵以防过热
         if (millis() - _pumpOnMillis >= TEMP_OVERTIME_LIMIT * 60 * 1000)
         {
             _pumpOnReason  = PumpOnReason_t::OFF;
