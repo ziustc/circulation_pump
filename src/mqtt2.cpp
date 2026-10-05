@@ -336,14 +336,17 @@ void MqttManager::onReceive(const char *topic, JsonObject &obj)
 
 void MqttManager::AnalyzeMsg(const char *topic, JsonObject &obj)
 {
-    char stateJson[50];
-    char cmdJson[50];
+    char stateJson[50];   // 发给设备的state信息
+    char cmdJson[50];     // 发给设备的cmd信息（可能包含多个分离的组件，各自有独立ip）
+    char cmdSpecJson[50]; // 专门发给本机的cmd信息
 
     snprintf(stateJson, sizeof(stateJson), "hass/%s/state", MQTT_DEV_ABBR);
     snprintf(cmdJson, sizeof(cmdJson), "hass/%s/cmd", MQTT_DEV_ABBR);
+    snprintf(cmdSpecJson, sizeof(cmdSpecJson), "hass/%s/%s/cmd", MQTT_DEV_ABBR, HOSTNAME);
 
-    if (strcmp(topic, cmdJson) == 0) handleCmd(obj);
     if (strcmp(topic, stateJson) == 0) handleState(obj);
+    if (strcmp(topic, cmdJson) == 0) handleCmd(obj);
+    if (strcmp(topic, cmdSpecJson) == 0) handleCmd(obj);
 }
 
 void MqttManager::handleCmd(const JsonObject &obj)
@@ -356,8 +359,7 @@ void MqttManager::handleCmd(const JsonObject &obj)
     if (obj[MQTT_LOG_LEVEL].is<String>())
     {
         const char *level = obj[MQTT_LOG_LEVEL];
-        if (!ExtLogger::instance().setLevelByName(level))
-            XLOGW("MQTT", "unknown log level: %s", level);
+        if (!ExtLogger::instance().setLevelByName(level)) XLOGW("MQTT", "unknown log level: %s", level);
         return;
     }
 

@@ -45,7 +45,7 @@ void setup(void)
     Serial.println("reboot");
 
     // Log初始化（日志先起来：OTA回滚过程那几条要靠它发出去）
-    ExtLogger::instance().init("circ_pump", true); // true = 日志带真实时间，SNTP没同步上时自动退回millis()
+    ExtLogger::instance().init(HOSTNAME, true); // true = 日志带真实时间，SNTP没同步上时自动退回millis()
     ExtLogger::instance().enableSerial(115200);
     ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
     ExtLogger::instance().setLevel(ExtLogger::Level::INFO);
@@ -158,12 +158,12 @@ void loop(void)
     {
         // mqtt.sendMsg("homeassistant/pump/config", "信息");
         State_t state = pcu.getState();
-        // XLOGD("PCU",
-        //       "State: tempC=%d C, tempC2=%d C, flow=%.1f L/min, pumpOn=%s",
-        //      state.tempC,
-        //      state.tempC2,
-        //      state.flow,
-        //      state.pumpOn ? "ON" : "OFF");
+        XLOGD("PCU",
+              "State: tempC=%.1f C, tempC2=%d C, flow=%.1f L/min, pumpOn=%s",
+              state.tempC,
+              state.tempC2,
+              state.flow,
+              state.pumpOn ? "ON" : "OFF");
         lastMillis = now;
     }
 }
