@@ -29,8 +29,16 @@ public:
     void loop();
 
     /**
-     * 获取当前固件版本号
+     * 登记当前固件版本号。在 stableCheck() 之前调用，会打进启动的第一条日志，
+     * 用来区分"现在跑的是哪一版"。
+     *
+     * 版本号由应用提供而不是库自己去取：它是工程的概念 —— 本工程在
+     * include/version.h 的 SW_VERSION 里，别的工程可能在别处。
+     * 不调用则显示 "unknown"。
      */
+    void setVersion(const char *version);
+
+    /** 获取当前固件版本号（即 setVersion() 登记的那个） */
     String getVersion() const;
 
     /**
@@ -61,6 +69,7 @@ private:
     WebServer        _server;
     OtaStatus_t      _status;
     esp_partition_t *_running, *_last;
+    String           _version; // 由 setVersion() 登记，仅用于日志
 
     // 以下为OTA过程处理函数
     void          handleRoot();

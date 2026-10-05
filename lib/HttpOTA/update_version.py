@@ -1,7 +1,29 @@
+import glob
 import os
 
 # 配置项
 HEADER_FILE = "include/version.h"
+
+# 版本号模板：工程里没有 include/version.h 时（新工程、或刚清过）由它复制一份过去。
+# 里面的版本号就是"起始版本"——复制之后本次不再自增，所以第一个版本就是它写的
+# 1.0.001，而不是 1.0.002。想让自己以后的工程从别的版本起算，改模板这一行即可。
+#
+# 路径和 HEADER_FILE 一样是相对工程根目录的（PlatformIO 跑本脚本时的工作目录）
+TEMPLATE_FILE = "lib/HttpOTA/version_template.h"
+
+# 同名的 version.h 出现在别的搜索路径上会盖住上面这个 —— PlatformIO 会把 lib/
+# 下每个库的目录也加进头文件搜索路径，而且排在 include/ 前面。
+# 一旦 lib/某库/version.h 存在，#include "version.h" 就撞上它，编译进去的是
+# 它的版本号，而本脚本自增的却是 include/version.h —— 现象是"烧的是新版本，
+# 日志打的是旧版本"，且完全静默。每次编译都查一遍，见到就喊。
+# 告警用英文：构建控制台不一定是 UTF-8，中文会乱码成一个看不出内容的东西
+def check_shadowed():
+    for path in sorted(glob.glob("lib/*/version.h")):
+        print("")
+        print("!! [update_version] %s shadows %s on the include path (lib/ comes first)." % (path, HEADER_FILE))
+        print("!! The firmware gets the version number from THAT file, while this script")
+        print("!! keeps bumping %s -- delete the shadowing file." % HEADER_FILE)
+        print("")
 
 # 预定义的头部注释内容
 header_comment = (
@@ -57,17 +79,27 @@ def update_version():
                 break
 
         # 2. 如果文件存在但没找到该行，在末尾追加
+        # 【这里原来写的是 "new_version"】：那个变量只在上面找到宏的分支里赋值，
+        # 走到这条路径就是 UnboundLocalError，构建会以 Python 报错中止。
+        # 用现成的 default_version（'"1.0.001"\n'）
         if not version_found:
             if new_lines and not new_lines[-1].endswith('\n'):
                 new_lines.append('\n')
-            new_lines.append(f'{macro_prefix} "{new_version}"\n')
+            new_lines.append(f'{macro_prefix} {default_version}')
 
-    # 3. 如果文件不存在，生成完整文件
+    # 3. 如果文件不存在：从模板复制一份（模板不在就退回脚本内置的默认内容）。
+    #    本次不自增 —— 第一个版本的流水号就是模板里的起始值
     else:
-        new_lines = [header_comment, f'{macro_prefix} "1.0.001"\n']
+        if os.path.exists(TEMPLATE_FILE):
+            with open(TEMPLATE_FILE, "r", encoding="utf-8") as f:
+                new_lines = [f.read()]
+        else:
+            print("!! [update_version] %s not found, falling back to the built-in default" % TEMPLATE_FILE)
+            new_lines = [header_comment, f'{macro_prefix} {default_version}']
 
     # 写入
     with open(HEADER_FILE, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
 
+check_shadowed()
 update_version()

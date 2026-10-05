@@ -45,7 +45,7 @@ void MqttCore::reconnect()
     }
     else
     {
-        XLOG("MQTT", "connect failed, rc=%d.", _client.state());
+        XLOGW("MQTT", "connect failed, rc=%d.", _client.state());
     }
 }
 
@@ -191,7 +191,7 @@ void MqttCore::onReceive(const char *topic, const uint8_t *payload, unsigned int
     DeserializationError err = deserializeJson(doc, payload, len);
     if (err)
     {
-        XLOG("MQTT", "deserializeJson failed: %s", err.c_str());
+        XLOGW("MQTT", "deserializeJson failed: %s", err.c_str());
         return;
     }
 
@@ -222,6 +222,8 @@ void MqttCore::onReceive(const char *topic, const uint8_t *payload, unsigned int
 #define MQTT_STATE_FLOW      "pump_s_flow"
 #define MQTT_STATE_WIFI      "pump_s_wifi"
 #define MQTT_PUMP_ON         "pump_s_on"
+
+#define MQTT_LOG_LEVEL "log_level" // 日志等级指令，不属于泵的参数，故不带pump_前缀
 
 MqttManager::MqttManager() { managerInstance = this; }
 
@@ -348,6 +350,16 @@ void MqttManager::handleCmd(const JsonObject &obj)
 {
     Settings_t    set;
     SettingsRev_t revisedField = SettingsRev_t::NONE;
+
+    // 如果收到日志等级指令：{"log_level":"debug"}
+    // 等级名由库自己解析（debug/info/warn/error/none 等），工程侧只负责把字符串取出来
+    if (obj[MQTT_LOG_LEVEL].is<String>())
+    {
+        const char *level = obj[MQTT_LOG_LEVEL];
+        if (!ExtLogger::instance().setLevelByName(level))
+            XLOGW("MQTT", "unknown log level: %s", level);
+        return;
+    }
 
     // 如果收到开关泵指令
     if (obj[MQTT_PUMP_ON].is<String>())

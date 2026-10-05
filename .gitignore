@@ -4,4 +4,4 @@
 .vscode/launch.json
 .vscode/ipch
 .cache/
-lib/
+# lib/ 不再忽略：ExtLogger、HttpOTA 两个私有库和 OTA 构建工具都放在那里，需要随工程一起版本管理

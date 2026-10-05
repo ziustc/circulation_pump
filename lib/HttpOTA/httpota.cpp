@@ -13,8 +13,13 @@
 OtaAssist::OtaAssist(uint16_t port)
 : _server(port)
 , _prefs()
+, _version("unknown")
 {
 }
+
+void OtaAssist::setVersion(const char *version) { _version = version ? version : "unknown"; }
+
+String OtaAssist::getVersion() const { return _version; }
 
 void OtaAssist::stableCheck()
 {
@@ -24,10 +29,13 @@ void OtaAssist::stableCheck()
     _prefs.begin("ota", false);
     _status = static_cast<OtaStatus_t>(_prefs.getInt(
         "APP_STATUS", static_cast<int>(OtaStatus_t::UART_STABLE))); // 如果没有记录，则一定是串口烧录，按稳定处理
-    XLOG("OTA",
-         "current partition = %s, status = %s",
-         strSubtype(_running->subtype).c_str(),
-         strStatus(_status).c_str());
+    // 启动后的第一条：现在跑的是哪一版、在哪个分区、处于什么状态。
+    // OTA 之后靠这一条就能确认"新固件真的进来了、从哪个分区起的"。
+    XLOGI("OTA",
+          "version = %s, partition = %s, status = %s",
+          _version.c_str(),
+          strSubtype(_running->subtype).c_str(),
+          strStatus(_status).c_str());
 
     // 如果当前分区状态为UART烧录，则默认稳定，无需处理
     if (_status == OtaStatus_t::UART_STABLE)
@@ -36,7 +44,7 @@ void OtaAssist::stableCheck()
         _prefs.putInt("APP_STATUS", static_cast<int>(OtaStatus_t::UART_STABLE));
         _prefs.putInt("STABLE_SUBTYPE", _running->subtype);
         _prefs.end();
-        XLOG("OTA", "firmware stable (UART)");
+        XLOGI("OTA", "firmware stable (UART)");
         return;
     }
 
@@ -60,7 +68,7 @@ void OtaAssist::stableCheck()
     {
         _prefs.putInt("VERIFY_TIMES", verifyTimes + 1);
         _prefs.end();
-        XLOG("OTA", "firmware pending verification. Attempt %d times.", verifyTimes + 1);
+        XLOGI("OTA", "firmware pending verification. Attempt %d times.", verifyTimes + 1);
         return;
     }
 
@@ -84,7 +92,7 @@ void OtaAssist::stableCheck()
     // ----重启
     for (int i = 5; i > 0; i--)
     {
-        XLOG("OTA", "firmware unstable, rollback in %d s", i);
+        XLOGE("OTA", "firmware unstable, rollback in %d s", i);
         delay(1000);
     }
     esp_restart();
@@ -102,7 +110,12 @@ void OtaAssist::loop() { _server.handleClient(); }
 
 void OtaAssist::handleRoot()
 {
-    String info = "Device OK";
+    // 除了探活，顺带报出版本和分区：OTA 之后不用接串口、不用翻日志，
+    // 一条 `curl http://<设备IP>/` 就能确认现在跑的是哪一版
+    String info = "Device OK. version = " + _version;
+    if (_running) info += ", partition = " + strSubtype(_running->subtype);
+    info += ", status = " + strStatus(_status);
+
     _server.send(200, "text/plain", info);
 }
 
@@ -116,15 +129,35 @@ void OtaAssist::handleUpdate()
 
     String url = _server.arg("url");
 
-    XLOG("OTA", " downloading from: %s", url.c_str());
+    XLOGI("OTA", " downloading from: %s", url.c_str());
 
     WiFiClient client;
 
     httpUpdate.onProgress([&](int current, int total) { updateProgBar(current, total); });
-    // httpUpdate.onEnd([&]() { otaOnEnd(); });
-    httpUpdate.update(client, url);
+    // httpUpdate.onEnd([&]() { otaOnEnd(); });   // 由 updateProgBar 在 100% 时调用，见那里的说明
 
-    return;
+    // 【升级结果必须看】：成功时 esp_restart() 在 update() 内部就发生了，根本走不到
+    // 下面；能走到这里的多半是失败 —— 而失败既不重启也不报错的话，PC 端脚本照样
+    // 打印"上传完成"（它只负责把 bin 摆出去、发一条指令），看起来像升级成功了。
+    t_httpUpdate_return ret = httpUpdate.update(client, url);
+
+    switch (ret)
+    {
+        case HTTP_UPDATE_FAILED:
+            XLOGE("OTA", "update failed (%d): %s", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+            _server.send(500, "text/plain", httpUpdate.getLastErrorString());
+            break;
+
+        case HTTP_UPDATE_NO_UPDATES:
+            XLOGW("OTA", "server reported no updates");
+            _server.send(200, "text/plain", "No updates");
+            break;
+
+        default: // HTTP_UPDATE_OK
+            XLOGW("OTA", "update reported OK but no reboot happened");
+            _server.send(200, "text/plain", "OK");
+            break;
+    }
 }
 
 void OtaAssist::updateProgBar(size_t current, size_t total)
@@ -168,7 +201,7 @@ void OtaAssist::otaOnEnd()
     _prefs.putInt("VERIFY_TIMES", 0);
     _prefs.end();
     _status = OtaStatus_t::OTA_NEW;
-    XLOG("OTA", "Update finished, Rebooting...");
+    XLOGI("OTA", "Update finished, Rebooting...");
 }
 
 String OtaAssist::formatSize(size_t bytes)
@@ -206,11 +239,13 @@ void OtaAssist::confirm()
         _prefs.putInt("STABLE_SUBTYPE", _running->subtype);
         _prefs.end();
         _status = OtaStatus_t::OTA_STABLE;
-        XLOG("OTA", "firmware confirmed stable");
+        XLOGI("OTA", "firmware confirmed stable");
     }
 }
 
-bool OtaAssist::isStable() { return (_status == OtaStatus_t::OTA_STABLE && _status == OtaStatus_t::UART_STABLE); }
+// 【原来是 &&】：一个值不可能同时等于两个状态，那样写永远返回 false。
+// 两种"稳定"是并列的：OTA 后确认过的，和串口烧录的。
+bool OtaAssist::isStable() { return (_status == OtaStatus_t::OTA_STABLE || _status == OtaStatus_t::UART_STABLE); }
 
 String OtaAssist::strStatus(OtaStatus_t status)
 {

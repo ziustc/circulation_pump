@@ -22,6 +22,8 @@
 #define TOUCH_START 8
 #define BEEP_PIN    15
 
+#define OTA_CONFIRM_DELAY_MS 30000 // 连续运行满30s即认为本版本稳定，覆盖WiFi+MQTT+SNTP的启动过程
+
 using namespace std;
 
 long lastMillis = 0;
@@ -42,21 +44,25 @@ void setup(void)
     Serial.begin(115200);
     Serial.println("reboot");
 
-    // Log初始化
-    ExtLogger::instance().init("circ_pump", false);
+    // Log初始化（日志先起来：OTA回滚过程那几条要靠它发出去）
+    ExtLogger::instance().init("circ_pump", true); // true = 日志带真实时间，SNTP没同步上时自动退回millis()
     ExtLogger::instance().enableSerial(115200);
     ExtLogger::instance().enableUDP(UDP_TARGET, UDP_PORT);
-    XLOG("Init", "=====Reboot===== SW_VERSION=%s =====Reboot=====", SW_VERSION);
+    ExtLogger::instance().setLevel(ExtLogger::Level::INFO);
+    XLOGI("Init", "=====Reboot===== SW_VERSION=%s =====Reboot=====", SW_VERSION);
+
+    // 登记版本号，会打进启动的第一条日志（stableCheck内），用来确认现在跑的是哪一版
+    ota.setVersion(SW_VERSION);
 
     // 检查OTA版本状态，若不稳定则回滚到上一个稳定版本
-    // ota.clearOtaData(); // 若是OTA升级，需要注释掉本条
+    // ota.clearOtaData(); // 串口烧录前调用以清除上次OTA留下的待验证状态，烧完务必注释掉
     ota.stableCheck();
 
     // 初始化引脚
     initPin();
 
     // 连接 WiFi
-    XLOG("WiFi", "Connecting to WiFi...");
+    XLOGI("WiFi", "Connecting to WiFi...");
     WiFi.setHostname(HOSTNAME);
     WiFi.mode(WIFI_STA);
 
@@ -69,55 +75,54 @@ void setup(void)
             wifiConnected = true;
             break;
         }
-        XLOG("WiFi", "Connection Failed! Retrying...");
+        XLOGW("WiFi", "Connection Failed! Retrying...");
         delay(500);
     }
     if (!wifiConnected)
     {
-        XLOG("WiFi", "Connection Failed! Rebooting...");
+        XLOGE("WiFi", "Connection Failed! Rebooting...");
         delay(1000);
         ESP.restart();
     }
-    XLOG("Init", "WIFI connected. IP = %s, Hostname = %s", WiFi.localIP().toString().c_str(), WiFi.getHostname());
+    XLOGI("Init", "WIFI connected. IP = %s, Hostname = %s", WiFi.localIP().toString().c_str(), WiFi.getHostname());
 
     // 启动OTA服务
     ota.initService();
-    XLOG("Init", "HTTP OTA service initialized.");
+    XLOGI("Init", "HTTP OTA service initialized.");
 
     // 同步真实时间
     configTime(8 * 3600, 0, NTP_SERVER);
     // sntp_set_time_sync_notification_cb(nullptr);
-    XLOG("Init", "SNTP time sync initialized.");
+    XLOGI("Init", "SNTP time sync initialized.");
 
     // 初始化引脚
-    XLOG("Init", "Pins initialized.");
+    XLOGI("Init", "Pins initialized.");
 
     // 准备显示屏
     scr.init();
     scr.setExportSettings_cb([](const Settings_t &set) { pcu.onScreenUpdate(set); });
-    XLOG("Init", "Screen initialized.");
+    XLOGI("Init", "Screen initialized.");
 
     // 按键初始化
     initButton();
-    XLOG("Init", "Buttons initialized.");
+    XLOGI("Init", "Buttons initialized.");
 
     // 初始化MQTT
     mqtt.init();
     mqtt.setOnCmdCB([](Settings_t set, SettingsRev_t rf) { pcu.onMqttUpdate(set, rf); });
     mqtt.setOnStateCB([](State_t state) { pcu.onMqttUpdate(state); });
     mqtt.setOnSwitchCB([](bool setOn) { pcu.onMqttPumpOn(setOn); });
-    XLOG("Init", "MQTT initialized.");
+    XLOGI("Init", "MQTT initialized.");
 
     // 泵控制单元初始化
     pcu.init();
-    XLOG("Init", "Pump Control Unit initialized.");
+    XLOGI("Init", "Pump Control Unit initialized.");
 }
 
 void loop(void)
 {
-    static int countOfDraw = 0;
-    int        wifiRssi    = WiFi.RSSI();
-    float      fps;
+    int   wifiRssi = WiFi.RSSI();
+    float fps;
 
     // 整体循环频率约60Hz
 
@@ -140,10 +145,11 @@ void loop(void)
     scr.updateSignal(wifiRssi);
     fps = scr.draw(); // 4个屏幕刷新共约16ms
 
-    // 确认若已稳定运行则保持本固件，否则重启后回滚到上次稳定固件
-    if (!ota.isStable()) countOfDraw++;
-    if (!ota.isStable() && countOfDraw > 999)
+    // 跑够时间就确认本版本稳定，保持本固件；不确认的话，OTA上去的固件重启满3次会被判为不稳定并自动回滚
+    static bool otaConfirmed = false;
+    if (!otaConfirmed && millis() >= OTA_CONFIRM_DELAY_MS)
     {
+        otaConfirmed = true;
         ota.confirm();
     }
 
@@ -152,8 +158,8 @@ void loop(void)
     {
         // mqtt.sendMsg("homeassistant/pump/config", "信息");
         State_t state = pcu.getState();
-        // XLOG("PCU",
-        //      "State: tempC=%d C, tempC2=%d C, flow=%.1f L/min, pumpOn=%s",
+        // XLOGD("PCU",
+        //       "State: tempC=%d C, tempC2=%d C, flow=%.1f L/min, pumpOn=%s",
         //      state.tempC,
         //      state.tempC2,
         //      state.flow,

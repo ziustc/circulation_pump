@@ -223,12 +223,12 @@ bool PumpCtrlUnit::readSettingsNVS()
     if (prefs.isKey("settings"))
     {
         prefs.getBytes("settings", &_settings, sizeof(_settings));
-        XLOG("PCU", "Settings loaded from NVS.");
+        XLOGI("PCU", "Settings loaded from NVS.");
         ret = true;
     }
     else
     {
-        XLOG("PCU", "No settings found in NVS, using defaults.");
+        XLOGW("PCU", "No settings found in NVS, using defaults.");
     }
     prefs.end();
     return ret;
@@ -251,7 +251,7 @@ void PumpCtrlUnit::switchPump(bool pumpOn)
 
     _screen.updatePumpOn(pumpOn);
     _mqtt.sendState(_state);
-    XLOG("PCU", "pump %s %s", pumpOn ? "ON" : "OFF", strOnOffComment().c_str());
+    XLOGI("PCU", "pump %s %s", pumpOn ? "ON" : "OFF", strOnOffComment().c_str());
 }
 
 void PumpCtrlUnit::readTemperature() { _state.tempC = tempSensor.getTempC(); }
@@ -274,9 +274,9 @@ void PumpCtrlUnit::tempCriteria()
     {
         if (millis() - _pumpOffMillis > TEMP_OVERTIME_RECOVERY * 60 * 1000)
         {
-            XLOG("PCU",
-                 "Pump lock ended. allow temp criteria again, last off reason: %s",
-                 _pumpOffReason == PumpOffReason_t::TEMP_OVERTIME ? "overtime" : "button off");
+            XLOGI("PCU",
+                  "Pump lock ended. allow temp criteria again, last off reason: %s",
+                  _pumpOffReason == PumpOffReason_t::TEMP_OVERTIME ? "overtime" : "button off");
             _pumpOffReason = PumpOffReason_t::NORMAL; // 恢复正常状态，允许再次开泵
         }
         // 未过则不允许开泵，直接返回

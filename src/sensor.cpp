@@ -61,7 +61,7 @@ void FlowSensor::calcFlow()
     {
         float frequency = count / deltaTime;
         flow            = frequency * 60 / K_FLOW;
-        // XLOG("FLOW", "by freq, flow = %.2f, count=%d, delta=%.2f", flow, count, deltaTime);
+        // XLOGD("FLOW", "by freq, flow = %.2f, count=%d, delta=%.2f", flow, count, deltaTime);
         return;
     }
 
@@ -70,7 +70,7 @@ void FlowSensor::calcFlow()
     for (int i = 0; i < RECENT_DATA_COUNT; i++)
         sum += intervals[i];
     flow = 1000.0f / ((float)sum / RECENT_DATA_COUNT) * 60 / K_FLOW;
-    // XLOG("FLOW", "by interval, flow = %.2f, intervals=%.2f", flow, (float)sum / RECENT_DATA_COUNT);
+    // XLOGD("FLOW", "by interval, flow = %.2f, intervals=%.2f", flow, (float)sum / RECENT_DATA_COUNT);
 }
 
 void IRAM_ATTR FlowSensor::isrHandler(void *arg)
