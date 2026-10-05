@@ -65,8 +65,10 @@ private:
     // bool            pumpOn         = false;
     struct tm     realTime;
     unsigned long lastMillis_sensor    = 0;
-    unsigned long lastMillis_mqtt      = 0;
+    unsigned long lastMillis_state     = 0;
+    unsigned long lastMillis_settings  = 0;
     unsigned long lastMillis_discovery = 0;
+    int           zeroFlowCount        = 0; // 高频发送时连续检测到流量为0的次数，达MQTT_STATE_ZERO_LIMIT后降频
     void          saveSettingsNVS();
     bool          readSettingsNVS();
     void          switchPump(bool pumpOn);

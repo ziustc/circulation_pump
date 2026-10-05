@@ -26,8 +26,11 @@
 #define SENSOR_FREQ            500 // 500ms读取一次传感器
 
 // MQTT常量
-#define MQTT_STATE_FREQ   10 * 1000      // 10s发送一次settings和state到HASS
-#define MQTT_SETTING_FREQ 10 * 60 * 1000 // 10分钟发送一次Discovery到HASS
+#define MQTT_STATE_FLOW_FREQ  1 * 1000       // 1s，有水流时发送一次state
+#define MQTT_STATE_IDLE_FREQ  10 * 1000      // 10s，无水流时发送一次state
+#define MQTT_STATE_ZERO_LIMIT 3              // 高频发送时，连续多少次流量为0后降到低频
+#define MQTT_SETTINGS_FREQ    10 * 1000      // 10s发送一次settings到HASS
+#define MQTT_DISCOVERY_FREQ   10 * 60 * 1000 // 10分钟发送一次Discovery到HASS（暂未使用）
 
 struct Settings_t
 {

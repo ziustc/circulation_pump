@@ -65,12 +65,26 @@ void PumpCtrlUnit::loop()
         _screen.updateTime(realTime.tm_hour, realTime.tm_min, realTime.tm_sec);
     }
 
-    // 每10秒发送一次状态到HASS
-    if (now - lastMillis_mqtt > MQTT_STATE_FREQ)
+    // 每10秒发送一次设置到HASS
+    if (now - lastMillis_settings > MQTT_SETTINGS_FREQ)
     {
-        lastMillis_mqtt = now;
+        lastMillis_settings = now;
         _mqtt.sendSettings(_settings);
+    }
+
+    // 状态发送周期随水流动态调整：
+    //   有水流（流量>0）→ 立即回到高频（1s）发送；
+    //   高频发送中连续MQTT_STATE_ZERO_LIMIT次流量为0 → 降到低频（10s）发送。
+    if (_state.flow > 0) zeroFlowCount = 0; // 每个循环都判，重新来水不用等下一次发送
+
+    unsigned long stateFreq = (zeroFlowCount >= MQTT_STATE_ZERO_LIMIT) ? MQTT_STATE_IDLE_FREQ : MQTT_STATE_FLOW_FREQ;
+    if (now - lastMillis_state > stateFreq)
+    {
+        lastMillis_state = now;
         _mqtt.sendState(_state);
+
+        // 发送时采样流量，连续N次为0才降频，避免停水瞬间就切走
+        if (_state.flow == 0 && zeroFlowCount < MQTT_STATE_ZERO_LIMIT) zeroFlowCount++;
     }
 
     // 根据设置自动控制水泵
